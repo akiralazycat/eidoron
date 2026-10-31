@@ -1,6 +1,8 @@
 #![forbid(unsafe_code)]
-//! Synthetic UNAUTHENTICATED shape fixtures for parser-only P2.1 tests.
-//! Not ciphertext, not known-answer cryptographic vectors, never user data.
+//! Synthetic fixtures. Shape helpers are unauthenticated bytes.
+//! [`key_schedule`] holds the M2 expected key bytes from an independent script.
+
+pub mod key_schedule;
 
 use eidoron_format::{HEAD_LEN, HEADER_LEN, MIN_OBJECT_LEN};
 

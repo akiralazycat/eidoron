@@ -19,8 +19,8 @@ Eidoron は、端末側で暗号化してからクラウドへ同期する、プ
 
 - Phase 0 / Foundation documentation — **completed (2026-10-31)**
 - Phase 1 / Threat-model and crypto protocol review — **P1.1–P1.5 documents and internal review recorded; implementation/independent audit unverified**
-- Rust code — **P2.2 primitive known-answer tests pass on rustc 1.99.1; vault encryption, sync and deniability are NOT implemented**
-- Phase 2 / Rust Vault — **M1 pinned RustCrypto crates plus three published vectors; `encrypt_authenticated` still returns NotImplemented**
+- Rust code — **P2.2 key schedule passes on rustc 1.99.1; vault object encryption, sync and deniability are NOT implemented**
+- Phase 2 / Rust Vault — **M2 derives RawPwdKey, WrapKey and ObjectKey; `encrypt_authenticated` still returns NotImplemented**
 - Production readiness — **none**
 
 ## Documentation index
@@ -44,7 +44,7 @@ Eidoron は、端末側で暗号化してからクラウドへ同期する、プ
 - [P1.5 scope and security restrictions — ADR-0004](docs/decisions/0004-security-review-scope-and-safety.md)
 - [Research and validation references](docs/07_RESEARCH_VALIDATION.md)
 
-**Next work unit:** P2.2 M2 — derive `RawPwdKey`, `WrapKey` and `ObjectKey` from fixed synthetic inputs, with expected bytes taken from an independent calculation. `encrypt_authenticated` stays `NotImplemented`. Task order: [docs/PLAN.md](docs/PLAN.md).
+**Next work unit:** P2.3 / M4 — object AEAD with a separate test nonce and an OS CSPRNG nonce. `encrypt_authenticated` stays `NotImplemented` until that gate passes. Task order: [docs/PLAN.md](docs/PLAN.md).
 
 License: [MIT](LICENSE). An open-source license is not a security certification.
 

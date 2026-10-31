@@ -14,11 +14,11 @@ Set up a reproducible local-only Rust workspace with **untrusted public format s
 
 | Crate | Responsibility | Implemented P2.1 | NOT implemented |
 |---|---|---|---|
-| `eidoron-crypto` | Cryptographic boundary | Fail-closed vault API; published Argon2id, HKDF-SHA-256 and XChaCha20-Poly1305 known-answer tests against pinned RustCrypto crates | Vault key schedule, object AEAD, key lifecycle |
+| `eidoron-crypto` | Cryptographic boundary | Fail-closed vault API; published primitive KATs; synthetic RawPwdKey, WrapKey, ObjectKey and wrapped-root open failures | Object AEAD and a full vault session |
 | `eidoron-format` | Public byte parsing | Fixed lengths, magic/version/suite/resource checks, only `Untrusted*` types | AEAD verification, CBOR schemas, full graph integrity |
 | `eidoron-provider-local` | Synthetic local object storage | Memory-only HashMap, immutable create & identical retry | Durable filesystem, crashes, cloud provider, CAS, multi-device |
 | `eidoron-vault` | Session/vault integration | Explicitly unavailable operations | Real vault creation, import, unlock, export, recovery |
-| `eidoron-test-vectors` | Synthetic deterministic test harness | Unauthenticated byte shapes plus public rejection matrix (length, version, Argon2 bounds) | Protocol key-schedule fixtures |
+| `eidoron-test-vectors` | Synthetic deterministic test harness | Unauthenticated shapes, rejection matrix, and key-schedule constants from `scripts/key_schedule_kat.py` | Further protocol fixtures |
 
 P2.1 had no external crates. P2.2 M1 added the five pinned RustCrypto crates listed in the checkpoint below; UniFFI is still absent. The P2.1 lockfile was path-only. The current `Cargo.lock` was regenerated with `cargo generate-lockfile` after those dependencies were added.
 
@@ -97,12 +97,20 @@ Known-answer sources, transcribed into `crates/crypto/src/published_kat.rs` and 
 
 On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (17 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0. `encrypt_authenticated` still returns `NotImplemented`.
 
+## P2.2 M2 checkpoint (2026-10-31)
+
+`derive_raw_pwd_key`, `derive_wrap_key` and `derive_object_key` follow [09_ENVELOPE_FORMAT_V0.md](09_ENVELOPE_FORMAT_V0.md). The synthetic vector uses passphrase `synthetic-only`, salt 16×`0x22`, vault id 16×`0x11`, object id 32×`0x55`, root 32×`0x42`, and Argon2id `m=65536 KiB, t=3, lanes=4`. Expected bytes are the output of `crates/test-vectors/scripts/key_schedule_kat.py` (argon2-cffi 25.1.0, Python hmac HKDF, PyNaCl 1.6.2), stored in `crates/test-vectors/src/key_schedule.rs`.
+
+Wrong passphrase, a flipped AAD bit and a flipped tag bit all return `CryptoError::Unavailable`. `encrypt_authenticated` still returns `NotImplemented`.
+
+On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (20 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0.
+
 ## Next bounded work unit
 
-Next is **P2.2 M2** in [PLAN.md](PLAN.md): synthetic `RawPwdKey` / `WrapKey` / `ObjectKey`, with expected bytes from an independent calculation. `encrypt_authenticated` stays `NotImplemented`. Real files stay out of the tree.
+Next is **M4** in [PLAN.md](PLAN.md): object AEAD for `kind || schema || payload`, with a test nonce kept separate from the OS CSPRNG. `encrypt_authenticated` stays `NotImplemented` until that gate passes. Real files stay out of the tree.
 
 ## Security / release state
 
-The repository is public. Never check in real credentials, signing keys, user archives, personal backup files or private test samples. No cryptographic primitives are currently executed, and no confidential user files should be entrusted to this code.
+The repository is public. Never check in real credentials, signing keys, user archives, personal backup files or private test samples. Primitive and key-schedule code runs only on synthetic vectors. No confidential user files should be entrusted to this code.
 
 No production release, provider sync or plausible-deniability guarantee is authorized. Date, PR numbers, executed checks, security deviations and next action must be updated in the progress ledger after each work unit.

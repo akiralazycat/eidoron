@@ -8,4 +8,6 @@ Published primitive known-answer tests live in `crates/crypto/src/published_kat.
 - HKDF-SHA-256: RFC 5869 appendix A.1 test case 1 (PRK and 42-byte OKM). <https://www.rfc-editor.org/rfc/rfc5869>
 - XChaCha20-Poly1305: draft-irtf-cfrg-xchacha-03 appendix A.3.1 (`AEAD_XCHACHA20_POLY1305`). Key 32 bytes, IV 24 bytes, tag 16 bytes. <https://www.ietf.org/archive/id/draft-irtf-cfrg-xchacha-03.txt>
 
-`encrypt_authenticated` does not return ciphertext. The vault key schedule is the next milestone.
+The synthetic key schedule lives in `src/key_schedule.rs`. Its expected bytes were printed by `scripts/key_schedule_kat.py` using argon2-cffi 25.1.0, the RFC 5869 HKDF construction on Python's `hmac`, and PyNaCl 1.6.2. Inputs are the passphrase `synthetic-only`, salt `0x22`×16, vault id `0x11`×16, object id `0x55`×32, and root secret `0x42`×32. Argon2id uses m=65536 KiB, t=3, lanes=4. `ObjectKey` is derived from the root secret. The passphrase path produces `RawPwdKey` and `WrapKey`. Re-run the script to check the constants. Do not replace them with output from the Rust tests.
+
+`encrypt_authenticated` does not return ciphertext. Object AEAD is the next milestone.
