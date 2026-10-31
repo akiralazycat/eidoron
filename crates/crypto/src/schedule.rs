@@ -2,6 +2,8 @@
 //!
 //! `RawPwdKey` and `WrapKey` come from the passphrase. `ObjectKey` comes from
 //! a separate `RootSecret`. None of these types print their bytes in `Debug`.
+//! `Drop` writes zeros over the key bytes. That wipe is best-effort: it does
+//! not cover copies left in registers, spilled stack slots, or swap.
 
 use std::fmt;
 

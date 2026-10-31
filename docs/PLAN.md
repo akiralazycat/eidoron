@@ -1,7 +1,7 @@
 # Eidoron 開発計画
 
 - 作成: **2026-10-31**
-- 最終更新: **2026-10-31（P2.2 M2 鍵スケジュール）**
+- 最終更新: **2026-10-31（M4 オブジェクト AEAD）**
 - 進捗の正本: [06_PROGRESS_HANDOFF.md](06_PROGRESS_HANDOFF.md)
 - 検証記録: [12_P2_IMPLEMENTATION.md](12_P2_IMPLEMENTATION.md)
 - この文書は作業順の計画である。暗号化の正しさ、監査、本番利用の許可ではない。
@@ -17,7 +17,8 @@
 | M1.5 `encrypt_authenticated` | 完了（API は閉じたまま）。3 本の既知回答が通ったあとも `NotImplemented` |
 | M3.10–14 公開バイトの拒否 | 完了。ヘッダ長、版、スイート、flags、KDF 識別子、Argon2 境界、オブジェクト長、HEAD 長 |
 | M2.6–9 鍵スケジュール | 完了。合成定数の `RawPwdKey` / `WrapKey` / `ObjectKey`。期待バイトは Python オラクル。`encrypt_authenticated` は `NotImplemented` |
-| M4 オブジェクト AEAD 以降 | 未着手。次の 1 手 |
+| M4.15–19 オブジェクト AEAD | 完了。`encrypt_authenticated` は OS の nonce で `kind \|\| schema \|\| payload` を封ずる。固定 nonce はテストビルドだけ。`status()` は `NotImplemented` |
+| M5 認証グラフ以降 | 未着手。次の 1 手 |
 
 ## 1. 何を作っているか
 
@@ -27,7 +28,7 @@ Eidoron は、ファイルを端末側で暗号化してからクラウドへ置
 
 | クレート | 今あるもの |
 |---|---|
-| `eidoron-crypto` | 既知回答テストと v0 鍵スケジュール。`encrypt_authenticated` は常に `NotImplemented` |
+| `eidoron-crypto` | 鍵スケジュールとオブジェクト AEAD。`encrypt_authenticated` は封じた暗号文を返す。`status()` は `NotImplemented` |
 | `eidoron-format` | 非信頼な公開バイト列の長さ・magic・版・スイート・Argon2 資源上限だけを見る |
 | `eidoron-provider-local` | プロセス内の `HashMap`。同じ ID への異なるバイトは拒否し、同一バイトの再送だけを許す |
 | `eidoron-vault` | インポートは `NotImplemented`。ストアの件数と上限定数を返すだけ |
@@ -46,7 +47,7 @@ Eidoron は、ファイルを端末側で暗号化してからクラウドへ置
 | P1.4 敵対的テスト計画 | 完了（文書）。VEC / PAR / CBOR / GRAPH / SYNC は未実行 |
 | P1.5 内部レビューと ADR-0004 | 完了（文書）。合成データ・ローカル・単一書き込みの試作だけが条件付きで許可。外部監査は未了 |
 | P2.1 ワークスペース | Rust 1.99.1 で fmt / test / clippy を通過 |
-| P2.2 プリミティブと鍵スケジュール | M1 と M2 完了。オブジェクトの AEAD API は未実装 |
+| P2.2 プリミティブ、鍵スケジュール、オブジェクト AEAD | M1、M2、M4 完了。ボルトのセッション操作は未実装 |
 | 永続化、同期、各 OS、Shadow / Specter | 未着手 |
 
 P2.1 のテスト 10 件が確認しているのは、スタブが失敗して閉じること、公開バイトの形が仕様の長さと一致すること、メモリストアが上書きを拒むこと、である。
@@ -152,4 +153,4 @@ Rust 1.99.1 がある環境で同じコマンドを実行した。
 
 ## 6. 推奨する次の 1 手
 
-M4 の項目 15 から着手する。オブジェクト平文は `kind || schema || payload` で、長さ 2 以上 1,048,576 以下。範囲外は AEAD を呼ぶ前に拒否する。テスト用 nonce と OS の CSPRNG から取る nonce を分ける。`encrypt_authenticated` は、このオブジェクト AEAD が既知回答と失敗試験を通すまで `NotImplemented` のままにする。
+M5 の項目 20 から着手する。復号済みバイト列をテストから渡す関数で、commit kind `0x01` かつ generation 0 のとき先行コミットが空であることだけを検査する。CBOR デコーダ全体はこの作業に入れない。

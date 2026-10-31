@@ -3,6 +3,7 @@
 //! [`key_schedule`] holds the M2 expected key bytes from an independent script.
 
 pub mod key_schedule;
+pub mod object_aead;
 
 use eidoron_format::{HEAD_LEN, HEADER_LEN, MIN_OBJECT_LEN};
 
