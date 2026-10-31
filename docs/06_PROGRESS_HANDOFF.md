@@ -2,7 +2,7 @@
 
 - Created: **2026-10-31 JST**
 - Last updated: **2026-10-31 JST**
-- Current baseline: **P1 Security Protocol / P1.1–P1.3 documentation authored**
+- Current baseline: **P1 Security Protocol / P1.1–P1.4 documentation authored**
 - Implementation status: **no code written**
 - Foundation branch: `docs/foundation-master-plan-20261031` (merged)
 - Foundation PR: https://github.com/akiralazycat/eidoron/pull/1 — merged into main on 2026-10-31 JST
@@ -28,8 +28,8 @@
 | P1.1 | Formalize adversaries/claims into normative spec | DONE (docs only) | 2026-10-31; `docs/08_SECURITY_TARGET.md`; C01–C08, SEC-001–013, DEN-001–005; no tests executed |
 | P1.2 | Library/FFI/device secure storage ADR | DONE (docs only) | 2026-10-31; ADR-0002 candidates and risks recorded; **no versions pinned, build or audit** |
 | P1.3 | Binary envelope v0 candidate and ADR-0003 | DONE (docs only) | 2026-10-31; `docs/09_ENVELOPE_FORMAT_V0.md`, ADR-0003; security review/interop vectors pending |
-| P1.4 | Security-oriented test/fuzz plan | TODO | **NEXT** — exact-byte vectors, SEC case mappings and failure matrix |
-| P1.5 | Security design review / release gate | TODO | Must resolve blockers before P2 |
+| P1.4 | Security-oriented test/fuzz plan | DONE (docs only) | 2026-10-31; `docs/10_TEST_AND_FUZZ_PLAN.md`; planned VEC/PAR/CBOR/GRAPH/SYNC and fuzz targets; **not run** |
+| P1.5 | Security design review / release gate | TODO | **NEXT** — address BLK-01..10 before P2 |
 | P2 | Rust Vault implementation | NOT STARTED | Do not claim ready |
 | P3 | Safe cloud sync | NOT STARTED | Do not claim ready |
 | P4/P5 | iOS / Android native clients | NOT STARTED | Do not claim ready |
@@ -53,14 +53,16 @@
 | 2026-10-31 | ADR-0003 | Candidate Vault header+object+HEAD protocol, independent random root wrapped by passphrase | Enables cheap password rewrap; still exposes old snapshots and Vault existence |
 | 2026-10-31 | OPEN-07 | P1.3 parameter ceilings and parser/metadata schema need security review | Resolve through P1.4 tests + P1.5 assessment |
 | 2026-10-31 | OPEN-08 | Conditional HEAD publication, rollback and root-rotation migration need implementation-level protocol | P3; no cross-provider atomicity promise |
+| 2026-10-31 | P1.4 | Security test/fuzz design documented | `docs/10_TEST_AND_FUZZ_PLAN.md`, BLK-01..10; no code/test run |
+| 2026-10-31 | OPEN-09 | HEAD freshness, conditional commit, historical descriptor risks and parser limits need P1.5 dispositions | Critical security/UX design gate |
 
-## Immediate next task (P1.4)
+## Immediate next task (P1.5)
 
-**Goal:** transform the candidate v0 byte format and security target into exact falsification/test fixtures before writing crypto code.
-- Inputs: `docs/09_ENVELOPE_FORMAT_V0.md`, ADR-0003, `docs/08_SECURITY_TARGET.md`, RFC 9106/5869/8949.
-- Deliverable: `docs/10_TEST_AND_FUZZ_PLAN.md` with SEC-001–013 and CLAIM-001 mapping, fixed synthetic fixture manifest, corrupted-byte vectors, parser resource bounds, canonical CBOR rejection, randomized failure injection, Rust/iOS/Android interoperability criteria and reproducibility commands for later P2.
-- Exit: every candidate format field and state transition has positive/negative tests and expected error; unresolved risks clearly escalated to P1.5.
-- Then P1.5 review with blockers resolved; P2 crypto code only after design approval. Shadow/Specter remain research.
+**Goal:** review the actual Vault v0 protocol, tests and user claims against real security threats, with an explicit approve / revise / block disposition.
+- Inputs: `docs/09_ENVELOPE_FORMAT_V0.md`, `docs/10_TEST_AND_FUZZ_PLAN.md`, ADR-0003, `docs/08_SECURITY_TARGET.md` and ADR-0002.
+- Deliverable: `docs/11_SECURITY_DESIGN_REVIEW.md` with each BLK-01..10 disposition, approved threat model, architectural changes, unresolved P3/provider assumptions, evidence and sign-off limits. Amend candidate spec/ADR in a new Git commit if needed.
+- Exit: **no unresolved security-critical ambiguity** in candidate Vault v0. Test execution and mobile validation remain P2 gates; this is NOT permission to claim audited security or Shadow deniability.
+- Then plan P2 scoped core implementation, recording test/tool versions. No mandatory GitHub Actions.
 
 ## Session log — 2026-10-31 P1.1
 
@@ -89,6 +91,15 @@
 - **No implementation, compiled tests, security audit or production-format freeze.**
 - Branch: `docs/p1-3-envelope-format-v0-20261031`; PR #4 merged into main (squash), 2026-10-31 JST.
 - Next: P1.4 test/fuzz plan, then P1.5 review before P2.
+
+## Session log — 2026-10-31 P1.4
+
+- Detected that P1.3 had already merged (PR #4); avoided overwriting it with a competing format proposal.
+- Read current `docs/09_ENVELOPE_FORMAT_V0.md` and ADR-0003, authored P1.4 **documentation-only** `docs/10_TEST_AND_FUZZ_PLAN.md`.
+- Enumerated exact positive/negative byte vectors, property/fuzz tests, malicious-provider failure state model, SEC and CLAIM coverage, and 10 pending P1.5 blockers.
+- No crates installed, files encrypted, actual vectors created, test suites executed or security guarantees verified.
+- Branch: `docs/p1-4-test-fuzz-plan-20261031`; verify merge state in GitHub history.
+- Next: P1.5 security design review, decide BLK-01..10, keep progress updated.
 
 ## Handoff recipe (another AI, mobile or desktop)
 

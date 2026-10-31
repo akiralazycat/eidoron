@@ -35,6 +35,13 @@
 - Design rationale and deferred alternatives: [ADR-0003](decisions/0003-envelope-and-key-hierarchy.md).
 - No published Eidoron test vectors or protocol audit yet.
 
+## P1.4 future test and fuzz tooling (reviewed 2026-10-31)
+
+- Rust Fuzz Book / cargo-fuzz: https://rust-fuzz.github.io/book/cargo-fuzz.html
+- Rust proptest property-based tests: https://docs.rs/proptest/latest/proptest/
+- Test/fuzz design and open P1.5 blockers: [10_TEST_AND_FUZZ_PLAN.md](10_TEST_AND_FUZZ_PLAN.md).
+- **No fuzz campaign, vector suite, or runtime test has been executed.**
+
 ## Deniable storage background
 
 - DataLair (PoPETs 2017), multi-snapshot adversary and write-only ORAM: https://crysp.petsymposium.org/popets/2017/popets-2017-0035.php
