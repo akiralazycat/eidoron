@@ -2,6 +2,7 @@
 
 - Created / updated: 2026-10-31 JST
 - Status: v0.1 **draft; not externally reviewed**
+- Normative follow-on (P1.1): [08_SECURITY_TARGET.md](08_SECURITY_TARGET.md). For exact prospective MUST/SHOULD requirements, experiments, failure semantics and test IDs, refer to that document. Both are **unverified designs**, not implemented protection.
 
 ## 1. Assets and trust boundaries
 
@@ -27,7 +28,7 @@ Threats can combine (especially T2+T3+T4). Define exactly which combinations eac
 
 ## 3. Desired security properties
 
-V1 Vault SHOULD prove/test: confidentiality (IND-style), authentication, malicious-change detection, domain separation, nonce safety, local key erasure best-effort, disaster recovery, fail-closed parse, incremental conflict safety.
+V1 Vault has candidate confidentiality, integrity, domain-separation, nonce-safety, best-effort key erasure, recovery, fail-closed and conflict-safety requirements. These are formalized as **prospective** C01–C08 in the security target; **none has been implemented, proven or tested yet**.
 
 **Deniability requirement (RESEARCH, not delivered):** within a stated observation model, an observer cannot distinguish a run with hidden writes from a permitted run with only ordinary writes except negligible (or bounded and measured) advantage. Include *initialization, growth, repair, sync and offline resumption* in traces, not just the final bytes. Use appropriate indistinguishability experiments, not aesthetic inference.
 
@@ -55,6 +56,8 @@ How can an ordinary-key-only client allocate space or rotate storage safely with
 Concurrently: independent offline devices, cloud object version histories, predictable access schedules and data growth can break plausible deniability even if current bytes look random.
 
 ## 6. Test matrix / exit criteria
+
+Canonical future test IDs are SEC-001–013, DEN-001–005 and CLAIM-001 in [08_SECURITY_TARGET.md](08_SECURITY_TARGET.md). The examples below are proposed—not executed.
 
 - T0: known-answer vectors, wrong-key rejection, ciphertext indistinguishability sanity checks, malformed-input fuzzing.
 - T1: swap/truncate/replay/delete/duplicate objects; encrypted index and parent-child binding; no silent data corruption.
