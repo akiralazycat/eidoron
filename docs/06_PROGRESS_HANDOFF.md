@@ -2,8 +2,8 @@
 
 - Created: **2026-10-31 JST**
 - Last updated: **2026-10-31 JST**
-- Current baseline: **P2.1 Rust scaffold verified on rustc 1.99.1; cryptography not implemented**
-- Implementation status: **five path-only crates compile; 10 unit tests pass; NO CRYPTO IMPLEMENTATION**
+- Current baseline: **P2.2 M1 published primitive vectors pass; vault encryption API still NotImplemented**
+- Implementation status: **RustCrypto crates pinned; 17 unit tests pass; NO VAULT ENCRYPTION**
 - Foundation branch: `docs/foundation-master-plan-20261031` (merged)
 - Foundation PR: https://github.com/akiralazycat/eidoron/pull/1 — merged into main on 2026-10-31 JST
 - Foundation merge commit: `7835fd40e5608f5525db9dcb625b30ddff395e7e`
@@ -39,7 +39,7 @@
 | P1.5 | Internal security design review and scope | DONE (docs only) | 2026-10-31; `docs/11_SECURITY_DESIGN_REVIEW.md`, ADR-0004. Not an external audit; release gate BLOCKED |
 | P2.1 | Synthetic local-only Rust workspace | DONE (scaffold verified, no crypto) | rustc 1.99.1 fmt/test/clippy recorded in `docs/12_P2_IMPLEMENTATION.md` |
 | P2.1-V | Verify lockfile, fmt, test, clippy on actual Rust | DONE | 2026-10-31: rustc 1.99.1 (`58cf8f9c3`, 2026-10-13). fmt check, 10 unit tests, clippy `-D warnings`, Cargo-generated path-only lockfile. Next tasks in `docs/PLAN.md` |
-| P2.2 | Known-answer crypto vectors and suite evaluation | NOT STARTED | **NEXT** — synthetic vectors only; see `docs/PLAN.md` M1 |
+| P2.2 | Known-answer crypto vectors and suite evaluation | PARTIAL | M1 done 2026-10-31: three published vectors and public-byte rejection tests. **NEXT** is M2 key schedule. `encrypt_authenticated` remains `NotImplemented`. See `docs/PLAN.md` |
 | P2 | Rust Vault implementation | NOT STARTED | Do not claim ready |
 | P3 | Safe cloud sync | NOT STARTED | Do not claim ready |
 | P4/P5 | iOS / Android native clients | NOT STARTED | Do not claim ready |
@@ -71,14 +71,27 @@
 | 2026-10-31 | P2.1 | Rust 1.99.1 + edition 2024, five path-only crates, fail-closed stubs | Source authored; `Cargo.lock` was hand-seeded pending Cargo regeneration |
 | 2026-10-31 | OPEN-12 | Rust toolchain unavailable in the P2.1 authoring container | Resolved for the 2026-10-31 verification run, which had rustc 1.99.1. Other machines still need the pinned toolchain |
 | 2026-10-31 | P2.1-V | Execute the fmt/test/clippy gate and replace the hand-written lockfile | rustfmt was the failing check; compiler accepted the sources. Regenerated path-only `Cargo.lock`. 10 unit tests pass. Cryptography still absent |
+| 2026-10-31 | P2.2-M1 | Pin RustCrypto and check three published vectors | `argon2` 0.6.0, `hkdf` 0.13.0, `sha2` 0.11.1, `chacha20poly1305` 0.11.0, `zeroize` 1.9.1. Expected bytes transcribed from RFC 9106 §5.3, RFC 5869 A.1 and draft-irtf-cfrg-xchacha-03 A.3.1. Vault encrypt API unchanged |
 
-## Immediate next task (P2.2) — one primitive known-answer test
+## Immediate next task (P2.2 M2) — synthetic key schedule
 
-**Goal:** pin RustCrypto crates and prove one published Argon2id vector before any vault encryption API returns ciphertext. Order and acceptance are in `docs/PLAN.md` (M1, then M2).
-- Inputs: ADR-0002 candidate crates, RFC 9106 test vector, `eidoron-crypto`, current path-only `Cargo.lock`.
-- Keep `encrypt_authenticated` returning `NotImplemented` until Argon2id, HKDF-SHA256 and XChaCha20-Poly1305 known-answer tests pass.
-- Expected bytes come from the published vector, not from a round trip of the code under test.
+**Goal:** compute `RawPwdKey`, `WrapKey` and `ObjectKey` from fixed synthetic inputs, as specified in `docs/09_ENVELOPE_FORMAT_V0.md`. Order is `docs/PLAN.md` M2.
+- Expected bytes come from an independent calculation, not from a round trip of this crate.
+- `encrypt_authenticated` stays `NotImplemented`. Do not add a stub that returns ciphertext.
 - Explicit scope restrictions: no cloud, real user data, native secrets, Shadow/Specter, production security claims; no mandatory GitHub Actions or user's PC.
+
+## Session log — 2026-10-31 P2.2 M1 published vectors
+
+- PR #8 was still open, so this work is branched from `cursor/verify-p2-1-compiler-814d`.
+- Pinned exact crates in `[workspace.dependencies]`: argon2 0.6.0 (MSRV 1.85), hkdf 0.13.0, sha2 0.11.1 (MSRV 1.88), chacha20poly1305 0.11.0, zeroize 1.9.1. No UniFFI, no secrecy.
+- `cargo generate-lockfile` pulled those crates and their transitive registry dependencies (including `aead` 0.6.1, `hmac` 0.13.0, `blake2` 0.11.0, `password-hash` 0.6.1, `getrandom` 0.4.3).
+- Known-answer tests in `crates/crypto/src/published_kat.rs`:
+  - RFC 9106 §5.3 Argon2id, including the published secret and associated data. 32-byte tag matched.
+  - RFC 5869 A.1 HKDF-SHA-256 test case 1. PRK (32) and OKM (42) matched.
+  - draft-irtf-cfrg-xchacha-03 A.3.1. Ciphertext and 16-byte tag matched; decrypt with the same AAD returned the published plaintext.
+- `encrypt_authenticated` still returns `NotImplemented`. `status()` is unchanged.
+- Public parser rejection tests in `eidoron-test-vectors` cover header lengths 0/135/136/137 and magic, version/suite/flags/KDF id, Argon2 bound rows, object lengths including the 1,048,680 maximum, and HEAD lengths 65/66/67.
+- `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (17 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0 on rustc 1.99.1.
 
 ## Session log — 2026-10-31 P2.1-V compiler verification
 

@@ -32,7 +32,7 @@ Exit for synthetic P2 prototype: review must define a narrow local-only boundary
 ## P2 — exact work packages
 
 - P2.1: **DONE as a verified synthetic scaffold (2026-10-31)** — five dependency-free Rust crates, pinned `rust-toolchain.toml` (1.99.1), Cargo-generated path-only `Cargo.lock`, untrusted public format inspector, memory-only store, fail-closed crypto/vault stubs. `cargo fmt --check`, `cargo test` (10 unit tests) and `cargo clippy -D warnings` executed on rustc 1.99.1. Cryptography is still absent. See [P2 implementation ledger](12_P2_IMPLEMENTATION.md) and [development plan](PLAN.md).
-- P2.2: deterministic versioned test vectors and direct primitive interoperability tests.
+- P2.2: **PARTIAL (2026-10-31)** — pinned `argon2` 0.6.0, `hkdf` 0.13.0, `sha2` 0.11.1, `chacha20poly1305` 0.11.0 and `zeroize` 1.9.1. One RFC 9106 Argon2id vector, one RFC 5869 HKDF-SHA-256 vector and one draft-irtf-cfrg-xchacha-03 AEAD vector pass. Public shape rejection matrix for header, Argon2 bounds, object and HEAD lengths is in `eidoron-test-vectors`. Key schedule and vault encryption are not implemented. See [PLAN.md](PLAN.md).
 - P2.3: stream/chunk AEAD implementation, length limits, strict error model and zeroization attempts.
 - P2.4: encrypted tree/index with object↔parent↔generation authenticated bindings.
 - P2.5: local provider, atomic persistence, safe imports and verified exports.

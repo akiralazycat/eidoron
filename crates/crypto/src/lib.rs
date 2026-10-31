@@ -1,8 +1,13 @@
 #![forbid(unsafe_code)]
-//! Placeholder for independently verified cryptography.
+//! Cryptographic boundary for the local synthetic prototype.
 //!
-//! P2.1 has NO encryption, key derivation or authentication implementation.
-//! All cryptographic operations fail closed until the P2.2+ test gates.
+//! P2.2 links pinned RustCrypto crates and checks three published known-answer
+//! vectors from unit tests. Those tests do not open a vault encryption API.
+//! [`encrypt_authenticated`] still returns [`CryptoError::NotImplemented`] and
+//! never produces ciphertext.
+
+#[cfg(test)]
+mod published_kat;
 
 /// Status of the cryptographic backend. This is not a security assurance.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
