@@ -2,8 +2,8 @@
 
 - Created: **2026-10-31 JST**
 - Last updated: **2026-10-31 JST**
-- Current baseline: **M5.21 directory-name check passes; vault session status is still NotImplemented**
-- Implementation status: **name rules without NFC or CBOR; 28 unit tests pass; NO VAULT SESSION**
+- Current baseline: **M5.22 chunk identity check passes; vault session status is still NotImplemented**
+- Implementation status: **one chunk compared with the caller; 32 unit tests pass; NO VAULT SESSION**
 - Foundation branch: `docs/foundation-master-plan-20261031` (merged)
 - Foundation PR: https://github.com/akiralazycat/eidoron/pull/1 — merged into main on 2026-10-31 JST
 - Foundation merge commit: `7835fd40e5608f5525db9dcb625b30ddff395e7e`
@@ -39,7 +39,7 @@
 | P1.5 | Internal security design review and scope | DONE (docs only) | 2026-10-31; `docs/11_SECURITY_DESIGN_REVIEW.md`, ADR-0004. Not an external audit; release gate BLOCKED |
 | P2.1 | Synthetic local-only Rust workspace | DONE (scaffold verified, no crypto) | rustc 1.99.1 fmt/test/clippy recorded in `docs/12_P2_IMPLEMENTATION.md` |
 | P2.1-V | Verify lockfile, fmt, test, clippy on actual Rust | DONE | 2026-10-31: rustc 1.99.1 (`58cf8f9c3`, 2026-10-13). fmt check, 10 unit tests, clippy `-D warnings`, Cargo-generated path-only lockfile. Next tasks in `docs/PLAN.md` |
-| P2.2 | Known-answer crypto vectors and suite evaluation | PARTIAL | M1, M2, M4, M5.20 and M5.21 done 2026-10-31. **NEXT** is M5.22 chunk file_id/ordinal. `status()` remains `NotImplemented`. See `docs/PLAN.md` |
+| P2.2 | Known-answer crypto vectors and suite evaluation | PARTIAL | M1, M2, M4 and M5.20–M5.22 done 2026-10-31. **NEXT** is M6.23 temp-directory writes. `status()` remains `NotImplemented`. See `docs/PLAN.md` |
 | P2 | Rust Vault implementation | NOT STARTED | Do not claim ready |
 | P3 | Safe cloud sync | NOT STARTED | Do not claim ready |
 | P4/P5 | iOS / Android native clients | NOT STARTED | Do not claim ready |
@@ -77,12 +77,22 @@
 | 2026-10-31 | M4-nonce | Fresh OS nonce on every object seal | Owner decision on PR #11: identical plaintext must not reuse or echo the previous nonce/ciphertext, because that reveals plaintext equality. Idempotency is a storage concern |
 | 2026-10-31 | M5-hash | Storage idempotency hash must be keyed or encrypted | Owner decision: HMAC, keyed BLAKE, or an HKDF-derived vault key. A plain hash of plaintext must not be stored or used as an id |
 | 2026-10-31 | M5.20 | Genesis commit predecessor check | Decrypted body only. Kind 0x01, generation 0, null prior. No general CBOR decoder. Fixtures from `scripts/genesis_commit_kat.py` |
-| 2026-10-31 | M5.21 | Directory name rejection without NFC | Empty, longer than 255 UTF-8 bytes, `/`, U+0000, and the whole names `.` and `..`. `file.txt` and non-NFC text are accepted |
+| 2026-10-31 | M5.21 | Directory name rejection without NFC | Empty, longer than 255 UTF-8 bytes, `/`, U+0000, and the whole names `.` and `..`. `file.txt` and non-NFC text are accepted. NFC/NFD coexistence is an open question in `docs/PLAN.md` |
+| 2026-10-31 | M5.22 | Chunk file_id and ordinal check | One decrypted chunk compared with the caller. No store scan. Either mismatch is `Mismatch`. Payload bytes are ignored |
 
-## Immediate next task (M5.22) — chunk identity check
+## Immediate next task (M6.23) — temporary opaque files
 
-**Goal:** a pure function that rejects a chunk when its `file_id` or ordinal differs from the caller's expectation. Do not walk a store.
+**Goal:** write opaque 32-byte ids into a temporary directory. An identical byte retry succeeds. A different payload at the same id is rejected. Do not claim crash safety.
 - Explicit scope restrictions: no cloud, real user data, native secrets, Shadow/Specter, production security claims; no mandatory GitHub Actions or user's PC.
+
+## Session log — 2026-10-31 M5.22 chunk identity
+
+- Started from main at `aa6051f` (PR #13 merged).
+- `eidoron_vault::check_chunk_identity` reads one decrypted body `kind || schema || file_id:16 || ordinal:u32be || file_bytes` and compares `file_id` and `ordinal` with the caller. It does not read a store and does not compare `file_bytes`.
+- A differing `file_id`, a differing ordinal, or both return the same `Mismatch`. Kind other than `0x04` is `NotAChunk`. A short body or schema other than `0x00` is `Unreadable`. Ordinal bytes are big-endian: `01 00 00 00` is not ordinal 1.
+- Recorded an open question in `docs/PLAN.md`: directory names are not Unicode-normalized, so NFC and NFD spellings of the same visual name can both be stored. The decision is deferred.
+- `import_encrypted` and `status()` remain `NotImplemented`.
+- `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (32 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0 on rustc 1.99.1.
 
 ## Session log — 2026-10-31 M5.21 directory names
 
