@@ -13,8 +13,8 @@ mod published_kat;
 
 pub use object_aead::{
     EncryptedObject, MAX_OBJECT_CIPHERTEXT_LEN, MAX_OBJECT_PLAINTEXT_LEN,
-    MIN_OBJECT_CIPHERTEXT_LEN, MIN_OBJECT_PLAINTEXT_LEN, PreviousObject, SealOutcome,
-    decrypt_authenticated, encrypt_authenticated,
+    MIN_OBJECT_CIPHERTEXT_LEN, MIN_OBJECT_PLAINTEXT_LEN, decrypt_authenticated,
+    encrypt_authenticated,
 };
 pub use schedule::{
     KdfParams, ObjectKey, RawPwdKey, RootSecret, WRAPPED_ROOT_LEN, WrapKey, derive_object_key,
@@ -35,8 +35,6 @@ pub enum CryptoError {
     Unavailable,
     /// Passphrase length, Argon2 parameters, or object plaintext length is outside the candidate bounds.
     UnsupportedParameters,
-    /// The same object key already seals a different plaintext.
-    Conflict,
 }
 
 impl std::fmt::Display for CryptoError {
@@ -45,7 +43,6 @@ impl std::fmt::Display for CryptoError {
             Self::NotImplemented => "cryptographic operation is not implemented",
             Self::Unavailable => "unavailable",
             Self::UnsupportedParameters => "unsupported parameters",
-            Self::Conflict => "conflict",
         })
     }
 }

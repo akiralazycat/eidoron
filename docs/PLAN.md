@@ -1,7 +1,7 @@
 # Eidoron 開発計画
 
 - 作成: **2026-10-31**
-- 最終更新: **2026-10-31（M4 オブジェクト AEAD）**
+- 最終更新: **2026-10-31（M4 封印は毎回新しい nonce）**
 - 進捗の正本: [06_PROGRESS_HANDOFF.md](06_PROGRESS_HANDOFF.md)
 - 検証記録: [12_P2_IMPLEMENTATION.md](12_P2_IMPLEMENTATION.md)
 - この文書は作業順の計画である。暗号化の正しさ、監査、本番利用の許可ではない。
@@ -17,7 +17,7 @@
 | M1.5 `encrypt_authenticated` | 完了（API は閉じたまま）。3 本の既知回答が通ったあとも `NotImplemented` |
 | M3.10–14 公開バイトの拒否 | 完了。ヘッダ長、版、スイート、flags、KDF 識別子、Argon2 境界、オブジェクト長、HEAD 長 |
 | M2.6–9 鍵スケジュール | 完了。合成定数の `RawPwdKey` / `WrapKey` / `ObjectKey`。期待バイトは Python オラクル。`encrypt_authenticated` は `NotImplemented` |
-| M4.15–19 オブジェクト AEAD | 完了。`encrypt_authenticated` は OS の nonce で `kind \|\| schema \|\| payload` を封ずる。固定 nonce はテストビルドだけ。`status()` は `NotImplemented` |
+| M4.15–19 オブジェクト AEAD | 完了。封印のたびに OS CSPRNG から 24 バイトの nonce を取る。同じ平文でも暗号文は変わる。固定 nonce はテストビルドだけ。`status()` は `NotImplemented` |
 | M5 認証グラフ以降 | 未着手。次の 1 手 |
 
 ## 1. 何を作っているか
@@ -128,7 +128,7 @@ Rust 1.99.1 がある環境で同じコマンドを実行した。
 
 15. 平文は `kind || schema || payload` で、長さ 2 以上 1,048,576 以下。範囲外は AEAD を呼ぶ前に拒否する。暗号文長の受理範囲は 18 以上 1,048,592 以下の既存定数に合わせる。
 16. テストから nonce を渡す関数と、OS の CSPRNG から nonce を取る関数を分ける。本番の関数にテスト用シードを付けない。
-17. 同じ `object_id` で別の平文を暗号化しようとした呼び出しは拒否する。`MemoryStore` の「同一バイトだけ再送可」と揃える。
+17. **取り下げ（2026-10-31、所有者判断）。** 暗号層は、同じ平文を同じ鍵で再び封じたとき、以前の nonce と暗号文を返さない。その返却は平文の一致を漏らす。`Conflict` による拒否も行わない。封印のたびに OS CSPRNG から新しい 24 バイト nonce を取る。冪等性が要るときは、ストレージ層が `object_id` と平文の内容ハッシュで扱い、暗号文の比較では扱わない。詳細は [09_ENVELOPE_FORMAT_V0.md](09_ENVELOPE_FORMAT_V0.md) の決定ノート。
 18. 復号はタグ検証が成功するまで平文を返さない。エラーの表示文字列に平文と鍵を出さない。
 19. RootSecret と鍵の型の `Drop` で `zeroize` を呼ぶ。ドキュメントには、消去がベストエフォートであることだけを書く。
 

@@ -109,11 +109,13 @@ On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked 
 
 `encrypt_authenticated` seals `kind || schema || payload` with XChaCha20-Poly1305 under `ObjectKey`. Plaintext must be 2..=1,048,576 bytes before AEAD runs. The release nonce is 24 bytes from `getrandom` 0.4.3. `seal_object_with_nonce` exists only in `cfg(test)`.
 
-The known-answer ciphertext is the output of `crates/test-vectors/scripts/object_aead_kat.py` (PyNaCl 1.6.2) and is stored in `crates/test-vectors/src/object_aead.rs`. Wrong key, AAD, ciphertext, and tag mutations, and truncated ciphertext, all return `Unavailable`. A different plaintext for an existing object returns `Conflict`.
+The known-answer ciphertext is the output of `crates/test-vectors/scripts/object_aead_kat.py` (PyNaCl 1.6.2) and is stored in `crates/test-vectors/src/object_aead.rs`. Wrong key, AAD, ciphertext, and tag mutations, and truncated ciphertext, all return `Unavailable`.
+
+**Nonce decision (2026-10-31):** every release seal draws a new 24-byte OS nonce. The cipher does not echo a previous nonce and ciphertext when the plaintext is repeated, and it does not reject a second plaintext by comparing ciphertexts. Storage idempotency, if added, is keyed by object id and a plaintext content hash. See [09_ENVELOPE_FORMAT_V0.md](09_ENVELOPE_FORMAT_V0.md).
 
 `status()` remains `NotImplemented`. Key `Drop` zeroizes and is documented as best-effort.
 
-On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (24 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0.
+On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (23 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0.
 
 ## Next bounded work unit
 

@@ -39,54 +39,21 @@ impl std::fmt::Debug for EncryptedObject {
     }
 }
 
-/// A previously stored object body. An identical plaintext may be retried.
-/// A different plaintext under the same key is rejected.
-#[derive(Clone, Copy)]
-pub struct PreviousObject<'a> {
-    pub nonce: &'a [u8; 24],
-    pub ciphertext_and_tag: &'a [u8],
-}
-
-/// Result of sealing. An identical retry returns the previous bytes and does
-/// not draw a new nonce.
-#[derive(Debug, PartialEq, Eq)]
-pub enum SealOutcome {
-    Created(EncryptedObject),
-    IdenticalRetry(EncryptedObject),
-}
-
-/// Seal `kind || schema || payload` with a fresh OS nonce.
+/// Seal `kind || schema || payload` with a fresh 24-byte OS nonce.
 ///
-/// When `previous` decrypts to the same plaintext, the previous nonce and
-/// ciphertext are returned and the CSPRNG is not called. When it decrypts to
-/// a different plaintext, the result is [`CryptoError::Conflict`] and no new
-/// ciphertext is produced. Authentication failures are [`CryptoError::Unavailable`].
+/// Every call draws a new nonce, including when `plaintext` matches an earlier
+/// call. Identical plaintexts therefore produce different ciphertexts. This
+/// function does not look at a previous ciphertext: doing so would reveal
+/// whether two plaintexts are equal. Storage idempotency, if needed, is keyed
+/// by object id and content hash outside this crate.
 pub fn encrypt_authenticated(
     key: &ObjectKey,
     aad: &[u8],
     plaintext: &[u8],
-    previous: Option<PreviousObject<'_>>,
-) -> Result<SealOutcome, CryptoError> {
+) -> Result<EncryptedObject, CryptoError> {
     check_plaintext(plaintext)?;
-    if let Some(previous) = previous {
-        return match open_plaintext(key, previous.nonce, aad, previous.ciphertext_and_tag) {
-            Ok(mut opened) => {
-                let same = opened.as_slice() == plaintext;
-                opened.zeroize();
-                if same {
-                    Ok(SealOutcome::IdenticalRetry(EncryptedObject {
-                        nonce: *previous.nonce,
-                        ciphertext_and_tag: previous.ciphertext_and_tag.to_vec(),
-                    }))
-                } else {
-                    Err(CryptoError::Conflict)
-                }
-            }
-            Err(error) => Err(error),
-        };
-    }
     let nonce = os_nonce()?;
-    seal_with_nonce(key, &nonce, aad, plaintext).map(SealOutcome::Created)
+    seal_with_nonce(key, &nonce, aad, plaintext)
 }
 
 /// Open a sealed object body. The plaintext is returned only after the tag check.
@@ -277,46 +244,24 @@ mod tests {
     }
 
     #[test]
-    fn same_object_key_rejects_a_different_plaintext() {
-        let key = object_key();
-        let sealed = seal_object_with_nonce(&key, &NONCE, &AAD, &PLAINTEXT).expect("seal");
-        let previous = PreviousObject {
-            nonce: &sealed.nonce,
-            ciphertext_and_tag: &sealed.ciphertext_and_tag,
-        };
-        let retry = encrypt_authenticated(&key, &AAD, &PLAINTEXT, Some(previous)).expect("retry");
-        assert_eq!(
-            retry,
-            SealOutcome::IdenticalRetry(EncryptedObject {
-                nonce: NONCE,
-                ciphertext_and_tag: CIPHERTEXT_AND_TAG.to_vec(),
-            })
-        );
-
-        let mut other = PLAINTEXT;
-        other[0] ^= 0x01;
-        let conflict = encrypt_authenticated(&key, &AAD, &other, Some(previous)).unwrap_err();
-        assert_eq!(conflict, CryptoError::Conflict);
-        assert_eq!(conflict.to_string(), "conflict");
-        assert!(!conflict.to_string().contains("synthetic"));
-    }
-
-    #[test]
-    fn production_nonce_comes_from_the_os_and_roundtrips() {
+    fn sealing_the_same_plaintext_twice_uses_fresh_nonces() {
         assert_eq!(status(), CryptoStatus::NotImplemented);
         let key = object_key();
-        let first = encrypt_authenticated(&key, &AAD, &PLAINTEXT, None).expect("first seal");
-        let second = encrypt_authenticated(&key, &AAD, &PLAINTEXT, None).expect("second seal");
-        let SealOutcome::Created(first) = first else {
-            panic!("a new object is created");
-        };
-        let SealOutcome::Created(second) = second else {
-            panic!("a new object is created");
-        };
+        let first = encrypt_authenticated(&key, &AAD, &PLAINTEXT).expect("first seal");
+        let second = encrypt_authenticated(&key, &AAD, &PLAINTEXT).expect("second seal");
+        assert_eq!(first.nonce.len(), 24);
+        assert_eq!(second.nonce.len(), 24);
         assert_ne!(first.nonce, second.nonce);
+        assert_ne!(first.ciphertext_and_tag, second.ciphertext_and_tag);
         assert_eq!(first.ciphertext_and_tag.len(), PLAINTEXT.len() + TAG_LEN);
-        let opened = decrypt_authenticated(&key, &first.nonce, &AAD, &first.ciphertext_and_tag)
-            .expect("open os nonce");
-        assert_eq!(opened, PLAINTEXT);
+        assert_eq!(second.ciphertext_and_tag.len(), PLAINTEXT.len() + TAG_LEN);
+        let opened_first =
+            decrypt_authenticated(&key, &first.nonce, &AAD, &first.ciphertext_and_tag)
+                .expect("open first");
+        let opened_second =
+            decrypt_authenticated(&key, &second.nonce, &AAD, &second.ciphertext_and_tag)
+                .expect("open second");
+        assert_eq!(opened_first, PLAINTEXT);
+        assert_eq!(opened_second, PLAINTEXT);
     }
 }

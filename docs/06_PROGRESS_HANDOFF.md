@@ -73,7 +73,8 @@
 | 2026-10-31 | P2.1-V | Execute the fmt/test/clippy gate and replace the hand-written lockfile | rustfmt was the failing check; compiler accepted the sources. Regenerated path-only `Cargo.lock`. 10 unit tests pass. Cryptography still absent |
 | 2026-10-31 | P2.2-M1 | Pin RustCrypto and check three published vectors | `argon2` 0.6.0, `hkdf` 0.13.0, `sha2` 0.11.1, `chacha20poly1305` 0.11.0, `zeroize` 1.9.1. Expected bytes transcribed from RFC 9106 §5.3, RFC 5869 A.1 and draft-irtf-cfrg-xchacha-03 A.3.1. Vault encrypt API unchanged |
 | 2026-10-31 | P2.2-M2 | Derive RawPwdKey, WrapKey and ObjectKey for one synthetic vector | Expected bytes from `crates/test-vectors/scripts/key_schedule_kat.py` (argon2-cffi 25.1.0, Python hmac HKDF, PyNaCl 1.6.2). Wrong passphrase, flipped AAD and flipped tag share `Unavailable`. `encrypt_authenticated` unchanged |
-| 2026-10-31 | M4 | Seal object bodies with XChaCha20-Poly1305 under ObjectKey | Expected ciphertext from `crates/test-vectors/scripts/object_aead_kat.py` (PyNaCl 1.6.2). Release nonce is `getrandom` 0.4.3. Fixed nonce is `cfg(test)` only. Wrong key, AAD/ciphertext/tag flips and truncation share `Unavailable`. Different plaintext under the same key is `Conflict` |
+| 2026-10-31 | M4 | Seal object bodies with XChaCha20-Poly1305 under ObjectKey | Expected ciphertext from `crates/test-vectors/scripts/object_aead_kat.py` (PyNaCl 1.6.2). Every release seal draws a fresh 24-byte nonce from `getrandom` 0.4.3. Fixed nonce is `cfg(test)` only. Wrong key, AAD/ciphertext/tag flips and truncation share `Unavailable`. Crypto does not return a previous ciphertext for a repeated plaintext |
+| 2026-10-31 | M4-nonce | Fresh OS nonce on every object seal | Owner decision on PR #11: identical plaintext must not reuse or echo the previous nonce/ciphertext, because that reveals plaintext equality. Idempotency is a storage concern keyed by object_id and content hash |
 
 ## Immediate next task (M5) — commit predecessor check
 
@@ -85,11 +86,11 @@
 - Started from main at `66af934` (PR #10 merged).
 - `encrypt_authenticated` seals `kind || schema || payload` under `ObjectKey` with XChaCha20-Poly1305. Plaintext length must be 2..=1,048,576 before AEAD. Ciphertext length must be 18..=1,048,592.
 - The release path fills a 24-byte nonce with `getrandom` 0.4.3 (`getrandom::fill`). `seal_object_with_nonce` is `#[cfg(test)]` and is absent from the library that dependents link.
-- A previous ciphertext that opens to the same plaintext is returned unchanged, without a new nonce. A previous ciphertext that opens to a different plaintext returns `Conflict` and is not re-encrypted.
+- Owner decision, same day: every `encrypt_authenticated` call draws a fresh 24-byte OS nonce. Repeating a plaintext produces a different nonce and ciphertext, and both open to that plaintext. The cipher does not compare a previous ciphertext. `CryptoError::Conflict` was removed. Idempotency stays with storage, keyed by object id and content hash. See the decision note in `docs/09_ENVELOPE_FORMAT_V0.md`.
 - Wrong key, flipped AAD, flipped ciphertext, flipped tag, and truncation all return `Unavailable` with display `unavailable`. The plaintext buffer is wiped when authentication fails.
 - Expected ciphertext is in `crates/test-vectors/src/object_aead.rs`, printed by `scripts/object_aead_kat.py` (PyNaCl 1.6.2) from the M2 `OBJECT_KEY` bytes. Plaintext is kind `0x04`, schema `0x00`, payload `synthetic`. Nonce is 24 bytes of `0x66`.
 - `status()` remains `NotImplemented`. Key `Drop` still zeroizes and is documented as best-effort.
-- `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (24 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0 on rustc 1.99.1.
+- `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0 on rustc 1.99.1. After the fresh-nonce decision, the suite is 23 unit tests.
 
 ## Session log — 2026-10-31 P2.2 M2 key schedule
 
