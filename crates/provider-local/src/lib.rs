@@ -1,14 +1,47 @@
 #![forbid(unsafe_code)]
-//! MEMORY-ONLY synthetic object store, NOT a durable disk or cloud backend.
+//! Local synthetic object stores.
 //!
-//! This code is never to be used as an assertion of crash-safe persistence,
-//! compare-and-swap, encryption, rollback detection or user-data protection.
+//! [`MemoryStore`] keeps bytes in process memory. [`TempDirStore`] writes opaque
+//! bytes under a caller-chosen directory. Neither store is a cloud backend,
+//! and neither claims crash-safe or atomic replacement. A retry is accepted
+//! only when the opaque bytes already stored for that id are identical. That
+//! comparison is not a hash of plaintext.
+
+mod temp_dir;
+
+pub use temp_dir::TempDirStore;
 
 use std::collections::HashMap;
+use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StoreError {
     ExistingObjectDiffers,
+    /// A directory read or write failed. The message does not include the path or the bytes.
+    Io,
+}
+
+impl fmt::Display for StoreError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::ExistingObjectDiffers => "existing object differs",
+            Self::Io => "io error",
+        })
+    }
+}
+
+/// Decide a put from bytes already stored for one id.
+///
+/// `existing` is the opaque blob for that id, not a plaintext hash.
+pub fn immutable_put_decision(
+    existing: Option<&[u8]>,
+    bytes: &[u8],
+) -> Result<PutOutcome, StoreError> {
+    match existing {
+        Some(existing) if existing == bytes => Ok(PutOutcome::IdenticalRetry),
+        Some(_) => Err(StoreError::ExistingObjectDiffers),
+        None => Ok(PutOutcome::Created),
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -33,10 +66,9 @@ impl MemoryStore {
         object_id: [u8; 32],
         bytes: &[u8],
     ) -> Result<PutOutcome, StoreError> {
-        match self.objects.get(&object_id) {
-            Some(existing) if existing == bytes => Ok(PutOutcome::IdenticalRetry),
-            Some(_) => Err(StoreError::ExistingObjectDiffers),
-            None => {
+        match immutable_put_decision(self.objects.get(&object_id).map(Vec::as_slice), bytes)? {
+            PutOutcome::IdenticalRetry => Ok(PutOutcome::IdenticalRetry),
+            PutOutcome::Created => {
                 self.objects.insert(object_id, bytes.to_vec());
                 Ok(PutOutcome::Created)
             }
