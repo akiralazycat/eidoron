@@ -31,7 +31,7 @@ Exit for synthetic P2 prototype: review must define a narrow local-only boundary
 
 ## P2 — exact work packages
 
-- P2.1: **NEXT** — offline/synthetic-only Rust workspace skeleton (`crates/crypto`, `format`, `vault`, `provider-local`, `test-vectors`), pinned toolchain/deps, safety notice and reproducible smoke tests. No real data or cloud provider.
+- P2.1: **PARTIAL (source authored, 2026-10-31)** — five dependency-free Rust crates, pinned `rust-toolchain.toml` (1.99.1), hand-seeded path-only `Cargo.lock`, untrusted public format inspector, memory-only store, fail-closed crypto/vault stubs and planned unit tests. **Cannot mark DONE until cargo build/fmt/test/clippy and lockfile regeneration are executed and recorded**. See [P2 implementation ledger](12_P2_IMPLEMENTATION.md).
 - P2.2: deterministic versioned test vectors and direct primitive interoperability tests.
 - P2.3: stream/chunk AEAD implementation, length limits, strict error model and zeroization attempts.
 - P2.4: encrypted tree/index with object↔parent↔generation authenticated bindings.
@@ -93,6 +93,12 @@ Exit: never silently lose a user's successfully committed data.
 - [Review document](11_SECURITY_DESIGN_REVIEW.md) and [ADR-0004](decisions/0004-security-review-scope-and-safety.md) cover BLK-01..10 and five additional findings, with explicit nonclaims and release gates.
 - Candidate P1.3 format now records corrected ≥2-byte plaintext, trusted local checkpoint semantics, nonrevoking password rewrap, passphrase-only recovery boundary, graph-level generation binding and local-only single-writer prototype restriction.
 - **Documentation-only evidence**: no executed tests, code audit, provider CAS, independent security reviewer or mobile validation. P2.1 local-only synthetic work is conditionally allowed; release readiness remains none.
+
+## P2.1 source checkpoint (2026-10-31)
+
+- [Implementation record](12_P2_IMPLEMENTATION.md) documents the code scaffold, no real encryption or syncing, exact toolchain choice, source-only verification, and blocked Cargo execution.
+- No external Rust crates have yet been installed. RustCrypto and UniFFI remain design candidates, not actual dependencies.
+- **Execution status:** `cargo` and `rustc` unavailable in authoring runtime; command exit statuses are NOT AVAILABLE. Follow up with an environment that has Rust, without requiring the user's personal PC or GitHub Actions.
 
 ## QA matrix (minimum)
 

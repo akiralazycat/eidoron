@@ -1,0 +1,65 @@
+# P2 implementation — Rust core & evidence ledger
+
+- Created / updated: **2026-10-31 JST**
+- Milestone: **P2.1 — synthetic local-only Rust workspace**
+- Status: **scaffold authored; cargo build and test not executed in this environment**
+- Governing decisions: [P1.5 review](11_SECURITY_DESIGN_REVIEW.md), [ADR-0004](decisions/0004-security-review-scope-and-safety.md)
+- Previous plans: [Roadmap](05_IMPLEMENTATION_ROADMAP.md) and [P1.4 test plan](10_TEST_AND_FUZZ_PLAN.md)
+
+## Purpose
+
+Set up a reproducible local-only Rust workspace with **untrusted public format shape validation** and deliberate **fail-closed cryptography stubs**. The purpose is architecture verification and early invalid-input safety, **not** usable secret storage. Keep all cloud, multi-device, remote rewrap, recovery, biometric, Shadow and Specter functionality unimplemented.
+
+## Current module boundaries
+
+| Crate | Responsibility | Implemented P2.1 | NOT implemented |
+|---|---|---|---|
+| `eidoron-crypto` | Cryptographic boundary | Explicit fail-closed error; no plaintext falsely returned | Argon2id, HKDF, XChaCha20, auth, key lifecycle |
+| `eidoron-format` | Public byte parsing | Fixed lengths, magic/version/suite/resource checks, only `Untrusted*` types | AEAD verification, CBOR schemas, full graph integrity |
+| `eidoron-provider-local` | Synthetic local object storage | Memory-only HashMap, immutable create & identical retry | Durable filesystem, crashes, cloud provider, CAS, multi-device |
+| `eidoron-vault` | Session/vault integration | Explicitly unavailable operations | Real vault creation, import, unlock, export, recovery |
+| `eidoron-test-vectors` | Synthetic deterministic test harness | Deliberately unauthenticated byte shape fixtures | Genuine ciphertext, KAT, independent expected cryptographic bytes |
+
+No external crates in P2.1: dependency choice for RustCrypto/UniFFI was recorded by ADR-0002 but is deferred to P2.2/3 until exact versions and security review. `Cargo.lock` contains **path-only local crates** and was authored as a bootstrap lockfile, **not** generated/verified by Cargo. Re-generate with the pinned toolchain and confirm no unexpected changes on first executable run.
+
+## Toolchain and executable checks
+
+- `rust-toolchain.toml` pins **1.99.1** (published 2026-10-15); edition 2024; no external dependencies.
+- On an environment with Rust installed, run:
+  1. `cargo generate-lockfile --offline` (should retain path-only graph; compare diff)
+  2. `cargo fmt --all -- --check`
+  3. `cargo test --workspace --locked --offline`
+  4. `cargo clippy --workspace --all-targets --locked --offline -- -D warnings`
+- Record exact stdout/stderr and exit codes. Don't say tests 'pass' based on static inspection, or use CI runs from another commit.
+- No GitHub Actions required; tests can run on an appropriately provisioned cloud computer. User does not need a desktop.
+- Local authoring container in this session: **`cargo`/`rustc` unavailable, outbound DNS unavailable**. Thus command execution = **NOT RUN**. JavaScript structural checks and GitHub tree verification are separate from code compilation.
+
+## Acceptance / progress
+
+| Task | State | Evidence |
+|---|---|---|
+| P2.1a Read latest docs, choose no-cloud scope | DONE | P1.5/ADR-0004; git baseline |
+| P2.1b Five crates + workspace configuration | AUTHORED | `Cargo.toml`, `crates/*` |
+| P2.1c Toolchain and lock file | AUTHORED / UNVERIFIED | `rust-toolchain.toml` and hand-authored `Cargo.lock` |
+| P2.1d Synthetic immutable memory store & untrusted byte shape fixtures | AUTHORED / UNTESTED | crate source and unit tests; no crypto |
+| P2.1e Cargo fmt/test/clippy + lock regeneration | BLOCKED | Rust toolchain absent in authoring runtime |
+| P2.1f PR and handoff documentation | AUTHORED | this document and `06_PROGRESS_HANDOFF.md` |
+
+### Invariants to check on first execution
+- Workspace resolves to exactly five path-only members, no downloaded dependencies.
+- `eidoron-crypto::encrypt_authenticated` always returns `NotImplemented`; there is no fake encryption.
+- `inspect_untrusted_*` functions validate only public shape; they never return `VerifiedPlaintext`.
+- Inputs shorter/longer than 136-byte header, 66-byte HEAD, or 106..1,048,680-byte object bounds are rejected.
+- Argon2 resource claims are bounded before any KDF work (none exists yet).
+- `MemoryStore` refuses different bytes at an existing opaque ID, permits byte-identical retry only.
+- Test fixtures use synthetic reserved repeat-byte markers; object authentication tags are knowingly invalid.
+
+## Next bounded work unit
+
+**P2.1 verification** should happen before treating the scaffold as compile-ready. First reproducible run of Rust 1.99.1 must regenerate lockfile, run format/test/clippy and fix any reported errors in a follow-up PR. Only then proceed to **P2.2**: independent primitive known-answer test vectors and exact-byte fixture validation. At P2.2 retain the explicit "DO NOT USE WITH REAL DATA" flag.
+
+## Security / release state
+
+The repository is public. Never check in real credentials, signing keys, user archives, personal backup files or private test samples. No cryptographic primitives are currently executed, and no confidential user files should be entrusted to this code.
+
+No production release, provider sync or plausible-deniability guarantee is authorized. Date, PR numbers, executed checks, security deviations and next action must be updated in the progress ledger after each work unit.

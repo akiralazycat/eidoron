@@ -2,8 +2,8 @@
 
 - Created: **2026-10-31 JST**
 - Last updated: **2026-10-31 JST**
-- Current baseline: **P1.5 internal design review recorded; P2.1 synthetic local Rust scaffold next**
-- Implementation status: **no code written**
+- Current baseline: **P2.1 Rust scaffold authored; Cargo compilation/test verification outstanding**
+- Implementation status: **five Rust crates and synthetic scaffold authored; NO CRYPTO IMPLEMENTATION, NO VERIFIED BUILD**
 - Foundation branch: `docs/foundation-master-plan-20261031` (merged)
 - Foundation PR: https://github.com/akiralazycat/eidoron/pull/1 — merged into main on 2026-10-31 JST
 - Foundation merge commit: `7835fd40e5608f5525db9dcb625b30ddff395e7e`
@@ -34,7 +34,9 @@
 | P1.3 | Binary envelope v0 candidate and ADR-0003 | DONE (docs only) | 2026-10-31; `docs/09_ENVELOPE_FORMAT_V0.md`, ADR-0003; security review/interop vectors pending |
 | P1.4 | Security-oriented test/fuzz plan | DONE (docs only) | 2026-10-31; `docs/10_TEST_AND_FUZZ_PLAN.md`; planned VEC/PAR/CBOR/GRAPH/SYNC and fuzz targets; **not run** |
 | P1.5 | Internal security design review and scope | DONE (docs only) | 2026-10-31; `docs/11_SECURITY_DESIGN_REVIEW.md`, ADR-0004. Not an external audit; release gate BLOCKED |
-| P2.1 | Synthetic local-only Rust workspace | TODO | **NEXT** — no real data, cloud or security claims |
+| P2.1 | Synthetic local-only Rust workspace | PARTIAL | Code/tests authored; toolchain pinned; Cargo.lock hand-seeded; **cargo/rustc absent, checks NOT RUN**. See `docs/12_P2_IMPLEMENTATION.md` |
+| P2.1-V | Verify lockfile, fmt, test, clippy on actual Rust | BLOCKED | **NEXT** — use a cloud/dev environment with Rust; no GitHub Actions or user PC required |
+| P2.2 | Known-answer crypto vectors and suite evaluation | NOT STARTED | Only after P2.1-V passes |
 | P2 | Rust Vault implementation | NOT STARTED | Do not claim ready |
 | P3 | Safe cloud sync | NOT STARTED | Do not claim ready |
 | P4/P5 | iOS / Android native clients | NOT STARTED | Do not claim ready |
@@ -63,24 +65,28 @@
 | 2026-10-31 | ADR-0004 | Only synthetic local P2 prototype conditionally allowed | BLK-01..10 dispositions, trusted checkpoint, non-revoking rewrap, cloud disabled |
 | 2026-10-31 | OPEN-10 | Provider-specific CAS, durable cloud password update, remote freshness | P3 blocker; not part of P2 local prototype |
 | 2026-10-31 | OPEN-11 | Independent cryptography/code review and executed primitive/fuzz/mobile tests | Release and security claims not authorized |
+| 2026-10-31 | P2.1 | Rust 1.99.1 + edition 2024, five path-only crates, fail-closed stubs | Source authored; `Cargo.lock` hand-seeded and MUST be regenerated/verified by Cargo before treating it as trusted |
+| 2026-10-31 | OPEN-12 | Rust toolchain unavailable in current authoring container | No actual builds/tests; obtain safe cloud compiler/runtime (not user's PC) and record executed results |
 
-## Immediate next task (P2.1) — synthetic local-only scaffold
+## Immediate next task (P2.1-V) — compile the scaffold
 
-**Goal:** create a Rust workspace and a deterministic, synthetic local fixture harness without cloud or real secrets.
-- Inputs: amended `docs/09_ENVELOPE_FORMAT_V0.md`, P1.4 test plan, P1.5 review, ADR-0004.
-- Deliverables: pinned Cargo workspace/toolchain and `Cargo.lock`; crate skeletons for crypto/format/vault/provider-local; test-vector directory and nonproduction disclaimer.
-- Exit: build/smoke test evidence when runnable, dependency inventory and reproducible commands, failure notes if unable to run; updated handoff status.
-- Prohibited: real sensitive files, cloud credentials/provider, password-rewrap service, biometric unlock, hidden realm, multiwriter commits, claims of audited security.
-- Each task must update this ledger in the same PR, with dated decisions and evidence. GitHub Actions is optional; do not require a personal PC.
+**Goal:** verify the authored Rust workspace and repair build/test issues before beginning P2.2 cryptography.
+- Inputs: `Cargo.toml`, `rust-toolchain.toml`, manually seeded `Cargo.lock`, `crates/`, `docs/12_P2_IMPLEMENTATION.md`.
+- Run using the pinned Rust toolchain: `cargo generate-lockfile --offline`, `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline`, `cargo clippy --workspace --all-targets --locked --offline -- -D warnings`.
+- Current check status: **NOT RUN** (authoring container has neither cargo nor rustc; external Rust downloads unavailable due DNS).
+- If any command fails, fix the relevant source, record stderr and rerun; don't mark passed without logs. Compare generated lockfile and commit changes.
+- Next after passing: P2.2 exact primitive KAT and independently verified synthetic vectors.
+- Explicit scope restrictions: no cloud, real user data, native secrets, Shadow/Specter, production security claims; no mandatory GitHub Actions or user's PC.
 
-## Session log — 2026-10-31 P1.5
+## Session log — 2026-10-31 P2.1 scaffold
 
-- Inspected latest main: P1.4 was already merged via PR #5. Did not duplicate it.
-- Created `docs/11_SECURITY_DESIGN_REVIEW.md` and `docs/decisions/0004-security-review-scope-and-safety.md` documenting internal dispositions BLK-01..10 and FIND-11..15.
-- Amended candidate v0 specification and P1.4 references; no silent rewrite of ADR-0003.
-- **Internal documentation review only**: no independent auditor, crypto test, source implementation, actual cloud/device validation or approved release.
-- Branch: `docs/p1-5-security-design-review-20261031`; PR #6 merged to main (squash) 2026-10-31 JST.
-- Next: P2.1 experimental offline/local Rust workspace.
+- Read latest main, P1.5 review and ADR-0004 before creating `feat/p2-1-rust-workspace-20261031`.
+- Created Rust 1.99.1 / edition 2024 workspace with five path-only crates and source-level unit tests.
+- Public envelope inspection returns only `Untrusted*` types; malformed lengths/magic and KDF resource budget are checked without invoking crypto.
+- `eidoron-crypto` and vault import **return NotImplemented**. `MemoryStore` only persists in process RAM and rejects conflicting overwrite of an opaque ID.
+- Added `docs/12_P2_IMPLEMENTATION.md` with module boundaries, verification commands, nonclaims and next owner task.
+- Only **static source/tree-level** checks are feasible. **No cargo/rustc tests executed; hand-composed Cargo.lock needs regeneration**.
+- Branch: `feat/p2-1-rust-workspace-20261031`; PR/merge status to be updated when verified.
 
 ## Session log — 2026-10-31 P1.1
 

@@ -108,6 +108,8 @@ P1.5 **is not external approval**. No source or reviewer in this session can ass
 
 ## 7. Next implementation plan (P2.1, scoped)
 
+**Source checkpoint:** P2.1 scaffold has been authored in [12_P2_IMPLEMENTATION.md](12_P2_IMPLEMENTATION.md), but Rust build/test verification remains **NOT RUN** until a toolchain-equipped environment is available. This does not change any review or release gate.
+
 1. Create `crates/` workspace skeleton with crypto/format/vault/provider-local/test-vectors and a synthetic local fixture provider.
 2. Pin compatible RustCrypto/UniFFI crate versions and Rust toolchain; record dependency audit results. Prefer validating crypto+format before introducing native binding code.
 3. Implement **parser skeletons** with strict bounds, no raw secret logging; add table-driven negatives from [P1.4](10_TEST_AND_FUZZ_PLAN.md).
