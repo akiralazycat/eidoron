@@ -9,6 +9,8 @@
 - Foundation merge commit: `7835fd40e5608f5525db9dcb625b30ddff395e7e`
 - P1.1 security-target PR: https://github.com/akiralazycat/eidoron/pull/2 — merged on 2026-10-31 JST
 - P1.1 merge commit: `7a4a7d7fb9668d8d9fb6d98b2fc8d36e09aff374`
+- P1.2 dependency/FFI PR: https://github.com/akiralazycat/eidoron/pull/3 — merged on 2026-10-31 JST
+- P1.2 merge commit: `7dd3ba458838b50df24b9d3b9623ab8350e9cb0d`
 
 ## Current phase board
 
@@ -68,7 +70,7 @@
 - Added `docs/decisions/0002-crypto-dependencies-ffi.md` with candidate libraries, explicit Rust/native boundary, OS wrapper key constraints, upgrade/audit policy and P1.3 open questions.
 - Updated crypto architecture, roadmap, README and progress references.
 - **Documentation only**: no code, dependency manifest, `Cargo.lock`, platform build, cryptographic runtime test or independent audit.
-- Branch: `docs/p1-2-crypto-dependencies-ffi-20261031`; verify PR merge state in GitHub history.
+- Branch: `docs/p1-2-crypto-dependencies-ffi-20261031`; PR #3 merged to main (squash), 2026-10-31 JST.
 - Next: P1.3 envelope-format specification + ADR-0003.
 
 ## Handoff recipe (another AI, mobile or desktop)
