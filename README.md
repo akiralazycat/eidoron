@@ -18,7 +18,7 @@ Eidoron は、端末側で暗号化してからクラウドへ同期する、プ
 ## Current status
 
 - Phase 0 / Foundation documentation — **completed (2026-10-31)**
-- Phase 1 / Threat-model and crypto protocol review — **not started**
+- Phase 1 / Threat-model and crypto protocol review — **in progress (P1.1 security target authored; implementation unverified)**
 - Application / encryption / sync code — **not implemented**
 - Production readiness — **none**
 
@@ -26,6 +26,7 @@ Eidoron は、端末側で暗号化してからクラウドへ同期する、プ
 
 - [Master plan](docs/00_MASTER_PLAN.md)
 - [Threat model and security claims](docs/01_THREAT_MODEL.md)
+- [Normative security target (P1.1)](docs/08_SECURITY_TARGET.md)
 - [Cryptographic architecture draft](docs/02_CRYPTO_ARCHITECTURE.md)
 - [Storage, deniability research and sync](docs/03_STORAGE_SYNC.md)
 - [Product and intelligence-inspired UX](docs/04_PRODUCT_UX.md)
@@ -34,6 +35,6 @@ Eidoron は、端末側で暗号化してからクラウドへ同期する、プ
 - [Architecture decision record](docs/decisions/0001-foundation.md)
 - [Research and validation references](docs/07_RESEARCH_VALIDATION.md)
 
-**First implementation unit:** Phase 1A — define testable adversaries, leakage assumptions and the container format boundary, before writing encryption or hidden-space code.
+**Next work unit:** P1.2 — choose Rust cryptography dependencies, FFI and device key lifecycle via ADR-0002. P1.3 will then specify the binary envelope; encryption or hidden-space code MUST wait for P1 security design review.
 
 License: [MIT](LICENSE). An open-source license is not a security certification.

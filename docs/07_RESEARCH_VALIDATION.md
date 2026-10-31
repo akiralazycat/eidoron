@@ -13,6 +13,8 @@
 - Cryptomator security architecture: https://docs.cryptomator.org/security/architecture/
 - Cryptomator explicit security target / metadata leakage: https://docs.cryptomator.org/security/security-target/
 
+- NIST SP 800-38D, Appendix D: authenticated decryption alone does not prevent replay; a trusted freshness mechanism is separate: https://nvlpubs.nist.gov/nistpubs/legacy/sp/nistspecialpublication800-38d.pdf
+
 ## Deniable storage background
 
 - DataLair (PoPETs 2017), multi-snapshot adversary and write-only ORAM: https://crysp.petsymposium.org/popets/2017/popets-2017-0035.php
@@ -36,6 +38,10 @@
 - Can two offline devices modify one hidden namespace without a trusted allocation ledger?
 - How large is the mobile latency/battery tradeoff of Argon2id and ORAM?
 - How can onboarding, biometric integration and backup avoid making hidden-space existence visible?
+
+## P1.1 security target
+
+The normative proposed claim IDs, falsification test IDs and W0/W1 games are in [08_SECURITY_TARGET.md](08_SECURITY_TARGET.md). This is **planning evidence only** and must not be cited as passing security tests.
 
 ## Required evidence deliverables
 

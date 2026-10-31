@@ -22,8 +22,8 @@ P6/P7 are parallel research and MUST NOT hold up an honest, useful Vault release
 
 ## P1 — exact work packages
 
-- P1.1: Freeze adversary taxonomy T0–T6; fill observation/leakage matrix with normative MUST/SHOULD statements.
-- P1.2: ADR for crypto libraries, dependency audit policy, Rust FFI and mobile key storage.
+- P1.1: **DONE (documentation only, 2026-10-31)** — T0–T6 observer definitions, prospective security claims C01–C08, falsification matrix SEC/DEN, research games and failure semantics in [08_SECURITY_TARGET.md](08_SECURITY_TARGET.md). Not peer-reviewed, implemented or certified.
+- P1.2: **NEXT** — ADR for crypto libraries, dependency audit policy, Rust FFI and mobile key storage.
 - P1.3: Versioned on-disk envelope spec: canonical encoding, key hierarchy, authenticated fields, nonce discipline, limits and parse errors.
 - P1.4: Threat-oriented test plan for file corruption, swap, truncation, replay, metadata substitution, KDF denial-of-service.
 - P1.5: External/internal design review checklist and explicit release/claim policy.
@@ -63,6 +63,12 @@ Exit: never silently lose a user's successfully committed data.
 - P7.1: investigate published deniable-storage / write-only ORAM schemes; estimate cloud request cost.
 - P7.2: privacy/availability/performance tradeoff and mobile scheduling feasibility.
 - P7.3: independent technical review and revised threat claims; default disabled if unresolved.
+
+## P1.1 security specification evidence (2026-10-31)
+
+- Source: [08_SECURITY_TARGET.md](08_SECURITY_TARGET.md), with explicit asset/observer/assumption/falsifier mapping and nonclaims.
+- Gate passed: *document authoring only*. No runtime test or independent peer review was performed.
+- Remaining P1 design and review work (P1.2–P1.5) must pass before implementing P2.
 
 ## QA matrix (minimum)
 

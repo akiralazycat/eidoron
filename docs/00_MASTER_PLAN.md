@@ -4,6 +4,7 @@
 - Last updated: 2026-10-31 JST
 - Document status: baseline v0.1 (planning, subject to security review)
 - Source of truth for completion: [06_PROGRESS_HANDOFF.md](06_PROGRESS_HANDOFF.md)
+- Normative security target: [08_SECURITY_TARGET.md](08_SECURITY_TARGET.md) — requirements, **not verified claims**
 - Change tracking: Git history; material changes require an ADR and roadmap/progress synchronization.
 
 ## 1. Mission
