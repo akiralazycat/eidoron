@@ -5,7 +5,7 @@
 - Scope: **Vault v0** (no Shadow/Specter assurance)
 - Source protocol: [09_ENVELOPE_FORMAT_V0.md](09_ENVELOPE_FORMAT_V0.md) and [ADR-0003](decisions/0003-envelope-and-key-hierarchy.md)
 - Security requirements: [08_SECURITY_TARGET.md](08_SECURITY_TARGET.md), SEC-001–013, DEN-001–005 and CLAIM-001
-- Next: P1.5 security design review and issue disposition, **then** P2 implementation if approved
+- Review follow-up: [P1.5 internal security review](11_SECURITY_DESIGN_REVIEW.md) and [ADR-0004](decisions/0004-security-review-scope-and-safety.md); conditional P2 only for synthetic local-only prototype, **no cloud or production**.
 - Document language: future MUST / expected assertions, not passing results.
 
 ## 0. Purpose and acceptance standard
@@ -232,3 +232,7 @@ Some targets/crates are not yet named or installed and commands will need verifi
 - Rust Fuzz Book / cargo-fuzz: https://rust-fuzz.github.io/book/cargo-fuzz.html
 - proptest: https://docs.rs/proptest/latest/proptest/
 - Argon2id RFC 9106: https://www.rfc-editor.org/rfc/rfc9106
+
+## 13. P1.5 follow-up (2026-10-31 JST)
+
+The BLK-01..10 table is retained as the original **pre-review findings**. Their design/scoping dispositions appear in [P1.5 review](11_SECURITY_DESIGN_REVIEW.md) and [ADR-0004](decisions/0004-security-review-scope-and-safety.md). None of the future VEC/PAR/CBOR/GRAPH/SYNC tests, fuzz campaigns, or cross-device tests have been executed. Initial implementation remains **synthetic/local-only** until further gates.

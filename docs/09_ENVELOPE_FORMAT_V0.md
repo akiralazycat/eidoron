@@ -2,7 +2,7 @@
 
 - Created / updated: 2026-10-31 JST
 - Milestone: P1.3 (documentation only)
-- Status: **candidate normative design for review**; no byte-format implementation, interop vectors, security audit or release approval
+- Status: **candidate format amended by P1.5 internal review**; no implementation, executable vectors, independent audit or release approval
 - Related: [ADR-0003](decisions/0003-envelope-and-key-hierarchy.md), [ADR-0002](decisions/0002-crypto-dependencies-ffi.md), [P1.1 security targets](08_SECURITY_TARGET.md)
 - MUST / MUST NOT / SHOULD describe **future implementation requirements**, not validated existing behavior.
 
@@ -87,7 +87,7 @@ Provider path is a lower-case hex encoding of the **32-byte object_id** (64 char
 
 `AAD = envelope[0..88]` (exact 88 bytes) and `Key = ObjectKey(object_id)`; plaintext is exactly `kind:u8 || body_schema:u8 || payload`. `body_schema = 0x00` in this candidate. The object type is encrypted; unverified bytes cannot be parsed as object content.
 
-`1 ≤ plaintext_len ≤ 1,048,576` bytes; `17 ≤ ciphertext_len ≤ 1,048,592`. The plaintext must contain **at least two prefix bytes**, so actual minimum accepted plaintext length is 2 and actual ciphertext minimum is 18 (future decoder MUST use the stricter bound). Hard cap before allocation; integer overflow, surplus bytes, mismatched declared sizes or malformed prefix rejected. No compression in v0, avoiding decompression-bomb handling and variable compression-state ambiguity.
+`2 ≤ plaintext_len ≤ 1,048,576` bytes; `18 ≤ ciphertext_len ≤ 1,048,592`. Every encrypted body has the kind+schema prefix; the parser MUST reject a 1-byte body. Hard cap before allocation; integer overflow, surplus bytes, mismatched declared sizes or malformed prefix rejected. No compression in v0, avoiding decompression-bomb handling and variable compression-state ambiguity.
 
 Each object is **immutable**: modification creates a new random ID, freshly derived object key and fresh random nonce; never overwrite an object at an existing ID. A retry may resend *identical ciphertext bytes* of a previously prepared immutable object, but MUST NOT re-encrypt new plaintext under the same ID/nonce.
 
@@ -169,16 +169,16 @@ Write proposal: stage all immutable objects and verify successful remote persist
 
 Typed internal errors: `UnsupportedFormat`, `InputTooLarge`, `InvalidEncoding`, `ResourcePolicyUnavailable`, `UnlockUnavailable`, `IntegrityFailure`, `MissingObject`, `FreshnessUnknown`, `SuspectedRollback`, `ConcurrentConflict`, `RemoteUnavailable`, `RecoveryRequired`. UI can coalesce unauthenticated errors where appropriate but MUST NOT hide meaningful user-recovery statuses.
 
-**Correction required by P1.4:** envelope total length max 88 + 1,048,592 = **1,048,680** bytes; minimum is 88 + 18 = **106**. These are the effective parser bounds. Explicitly test the inclusive endpoints.
+**P1.5 clarified bounds:** complete envelope length is **106..1,048,680 bytes** inclusive. Test both endpoints and reject surplus bytes. See [P1.5 review](11_SECURITY_DESIGN_REVIEW.md).
 
 ## 7. Password changes, root rotation, restore, migrations
 
-### Password change — rewrap, not re-encrypt
+### Non-revoking password-wrapper replacement — future protocol, disabled in local prototype and cloud
 
 1. Only after authenticated unlock, generate a new salt and wrapping nonce and choose reviewed KDF parameters.
 2. Derive new wrapping key, encrypt the **same RootSecret** under a new header, AAD bound to new prefix.
 3. Atomically replace header subject to provider update rules; maintain a client-local recovery journal until acknowledged. Never expose inconsistent new header with irrecoverable root.
-4. A provider's retained **old header snapshot** can still permit the old password to decrypt unchanged object history. Therefore changing a password does **NOT** revoke an old password held by someone with historical ciphertext. Clearly disclose this in UI.
+4. A provider's retained **old header snapshot** can still permit the old password to decrypt unchanged object history. Therefore password-wrapper replacement does **NOT** revoke old access: a holder of an old header and passphrase can decrypt **future objects** using the unchanged RootSecret, not just old objects. Do not call this password revocation. Remote rewrap is disabled until a transactional design has been reviewed; local-only test fixtures may exercise in-memory rewrap.
 
 ### Full root rotation (future, non-v0 automatic feature)
 
@@ -186,7 +186,7 @@ To revoke previously exposed RootSecret or old-password access to *future writes
 
 ### Recovery / backups
 
-Vault header and ciphertext are necessary but insufficient if password lost; a recovery credential, if implemented later, is another powerful key and must be separately designed with no plaintext master-key backup to provider. Recovery must be available after device loss independent of Keychain/Keystore where explicitly opted in. When a valid old snapshot is restored without trusted checkpoint, display **freshness unknown**. No automatic repair by ignoring tags or replay gaps.
+v0 candidate is **passphrase-only**: lost passphrase may mean irreversible loss of access. No recovery credential, universal bypass or second password slot is defined. Any future opted-in recovery must have a distinct security design independent of device-only Keychain/Keystore wrapping and never store plaintext root material with the provider. When a valid old snapshot is restored without trusted checkpoint, display **freshness unknown**. No automatic repair by ignoring tags or replay gaps.
 
 ### Format migration
 
@@ -236,3 +236,18 @@ Tests MUST assert **exact bytes**, not just encrypt/decrypt round-trip (two impl
 - RFC 5869 HKDF: https://www.rfc-editor.org/rfc/rfc5869
 - RFC 8949 §4.2 core deterministic CBOR and duplicate keys: https://www.rfc-editor.org/rfc/rfc8949
 - RustCrypto XChaCha20Poly1305: https://docs.rs/chacha20poly1305/latest/chacha20poly1305/
+
+## 12. P1.5 internal security-review amendment — controlling scope and rules (2026-10-31)
+
+The following review decisions **take precedence** if earlier v0 prose is ambiguous; a future format revision must explicitly incorporate them and produce new exact-byte fixtures:
+
+1. **Local synthetic prototype only** in early P2; remote writes, multiwriter sync, cloud password rewrap, root rotation, recovery slots and real confidential data are not enabled. No production security promise.
+2. Public HEAD is an untrusted root selector, not proof of freshness. A separately trusted *local* checkpoint `(vault_id, generation, commit_root_object_id)` can detect old generations and same-generation forks; verify authenticated ancestry for larger remote generations. Without a trusted checkpoint, report `FreshnessUnknown`. Even a matching checkpoint does not prove no newer provider-withheld writes.
+3. Object encryption's AAD covers the **public envelope**, while generation and logical parent/path are verified through the *authenticated commit-root graph*. A file chunk is not individually bound to one fixed generation; reuse between versions is possible.
+4. Bound actual encoded object size **and** logical directory/chunk count/depth together. The headline maximum entry count does not override the 1-MiB object limit; reject rather than truncate.
+5. Import enforces filename NFC via an explicit accept/reject path. Password bytes remain byte-exact. OS export MUST check target-path conflicts under case folding and normalization, and never silently overwrite.
+6. RFC 8949 §4.2.1 **bytewise encoded-key** core deterministic CBOR applies, not the RFC 7049 legacy length-first variant.
+7. Only a provider-specific verified compare-and-swap/transaction model in P3 can enable cloud HEAD publication and competing-writer support. A standalone HEAD MAC does **not** solve replay of a valid prior MAC and HEAD together.
+8. Local lock and password rewrap never imply forensic erasure or historical/future credential revocation.
+
+See [P1.5 security design review](11_SECURITY_DESIGN_REVIEW.md) and [ADR-0004](decisions/0004-security-review-scope-and-safety.md). These decisions are **not** implementation, passing test results or an independent security audit. The older P1.4-oriented checklist above is retained as historical design-stage context; the next task is P2.1 synthetic local-only scaffolding.
