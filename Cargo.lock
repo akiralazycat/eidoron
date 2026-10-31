@@ -176,6 +176,7 @@ dependencies = [
  "eidoron-crypto",
  "eidoron-format",
  "eidoron-provider-local",
+ "eidoron-test-vectors",
 ]
 
 [[package]]

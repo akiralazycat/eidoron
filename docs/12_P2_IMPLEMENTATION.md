@@ -117,9 +117,17 @@ The known-answer ciphertext is the output of `crates/test-vectors/scripts/object
 
 On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (23 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0.
 
+## M5.20 checkpoint (2026-10-31)
+
+`check_genesis_predecessor` in `eidoron-vault` applies one rule to a decrypted body: kind `0x01`, schema `0x00`, generation 0, and a null predecessor. A byte string at generation 0, including length 0, is rejected. The function does not validate map keys 2 and 3 and does not judge generation greater than 0. Fixtures and expected labels are the output of `crates/test-vectors/scripts/genesis_commit_kat.py`.
+
+**Storage hash decision (2026-10-31):** an idempotency content hash must be keyed (HMAC, keyed BLAKE, or HKDF from vault secrets) or stored encrypted. A plain hash of plaintext is forbidden. See [09_ENVELOPE_FORMAT_V0.md](09_ENVELOPE_FORMAT_V0.md).
+
+On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (25 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0.
+
 ## Next bounded work unit
 
-Next is **M5** in [PLAN.md](PLAN.md): a decrypted commit of kind `0x01` and generation 0 must have an empty predecessor. No CBOR decoder in that change. Real files stay out of the tree.
+Next is **M5.21** in [PLAN.md](PLAN.md): reject empty directory names and the names `/`, `.`, `..`, and names containing NUL. No CBOR decoder and no NFC check in that change. Real files stay out of the tree.
 
 ## Security / release state
 

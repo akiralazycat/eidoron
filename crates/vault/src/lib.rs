@@ -1,6 +1,11 @@
 #![forbid(unsafe_code)]
-//! P2.1 scaffold: NO real vault creation, unlock, encryption, sync or recovery.
-//! The explicit fail-closed API prevents accidental use as a security product.
+//! Vault scaffold. Creation, unlock, import, and sync stay unavailable.
+//! [`check_genesis_predecessor`](crate::check_genesis_predecessor) applies one rule
+//! to an already decrypted commit body.
+
+mod commit_check;
+
+pub use commit_check::{CommitCheckError, GenesisPredecessor, check_genesis_predecessor};
 
 use eidoron_provider_local::MemoryStore;
 

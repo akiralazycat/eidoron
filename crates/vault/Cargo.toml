@@ -11,5 +11,8 @@ eidoron-crypto = { path = "../crypto" }
 eidoron-format = { path = "../format" }
 eidoron-provider-local = { path = "../provider-local" }
 
+[dev-dependencies]
+eidoron-test-vectors = { path = "../test-vectors" }
+
 [lints]
 workspace = true
