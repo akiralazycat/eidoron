@@ -1,0 +1,31 @@
+# P2.1 bootstrap: manually composed for path-only crates because Cargo is unavailable
+# in the authoring environment. REGENERATE/VERIFY using cargo generate-lockfile.
+version = 4
+
+[[package]]
+name = "eidoron-crypto"
+version = "0.0.0"
+
+[[package]]
+name = "eidoron-format"
+version = "0.0.0"
+
+[[package]]
+name = "eidoron-provider-local"
+version = "0.0.0"
+
+[[package]]
+name = "eidoron-test-vectors"
+version = "0.0.0"
+dependencies = [
+ "eidoron-format",
+]
+
+[[package]]
+name = "eidoron-vault"
+version = "0.0.0"
+dependencies = [
+ "eidoron-crypto",
+ "eidoron-format",
+ "eidoron-provider-local",
+]

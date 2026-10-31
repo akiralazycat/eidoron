@@ -19,7 +19,8 @@ Eidoron は、端末側で暗号化してからクラウドへ同期する、プ
 
 - Phase 0 / Foundation documentation — **completed (2026-10-31)**
 - Phase 1 / Threat-model and crypto protocol review — **P1.1–P1.5 documents and internal review recorded; implementation/independent audit unverified**
-- Application / encryption / sync code — **not implemented**
+- Rust code — **P2.1 synthetic scaffold authored; cryptography, vault operations and sync NOT implemented; compilation NOT verified**
+- Phase 2 / Rust Vault — **P2.1 scaffold partially complete: actual cargo build/test pending**
 - Production readiness — **none**
 
 ## Documentation index
@@ -31,6 +32,7 @@ Eidoron は、端末側で暗号化してからクラウドへ同期する、プ
 - [Vault envelope format v0 (P1.3 review candidate)](docs/09_ENVELOPE_FORMAT_V0.md)
 - [Adversarial test and fuzz plan (P1.4)](docs/10_TEST_AND_FUZZ_PLAN.md)
 - [Internal security design review (P1.5)](docs/11_SECURITY_DESIGN_REVIEW.md)
+- [Rust implementation plan and verification status (P2)](docs/12_P2_IMPLEMENTATION.md)
 - [Storage, deniability research and sync](docs/03_STORAGE_SYNC.md)
 - [Product and intelligence-inspired UX](docs/04_PRODUCT_UX.md)
 - [Implementation phases and acceptance gates](docs/05_IMPLEMENTATION_ROADMAP.md)
@@ -41,6 +43,10 @@ Eidoron は、端末側で暗号化してからクラウドへ同期する、プ
 - [P1.5 scope and security restrictions — ADR-0004](docs/decisions/0004-security-review-scope-and-safety.md)
 - [Research and validation references](docs/07_RESEARCH_VALIDATION.md)
 
-**Next work unit:** P2.1 — **synthetic, offline/local-only Rust workspace and tests**. P1.5 is an **internal documentation review only**, not an independent audit. No cloud, real secrets, multiwriter sync, Shadow/Specter guarantee or production security claim is authorized.
+**Next work unit:** P2.1 verification — regenerate/check the manually seeded `Cargo.lock` with Rust 1.99.1, then run `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline`, and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings`. Source scaffold and tests are committed, **not run**. Only after verified compilation should P2.2 add cryptographic known-answer tests.
 
 License: [MIT](LICENSE). An open-source license is not a security certification.
+
+## P2.1 source safety warning
+
+The `crates/` tree is a **synthetic-only nonproduction scaffold**, not a usable encrypted vault. `eidoron-crypto` fails closed with `NotImplemented`; `eidoron-format` inspects **untrusted** public byte shapes only. Never import real files or secrets. No cloud provider, operating-system secure keystore integration or hidden container is included.

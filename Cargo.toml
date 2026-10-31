@@ -1,0 +1,20 @@
+[workspace]
+resolver = "3"
+members = [
+  "crates/crypto",
+  "crates/format",
+  "crates/provider-local",
+  "crates/vault",
+  "crates/test-vectors",
+]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.99.1"
+license = "MIT"
+repository = "https://github.com/akiralazycat/eidoron"
+publish = false
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
