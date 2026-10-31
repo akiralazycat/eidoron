@@ -2,7 +2,7 @@
 
 - Created: **2026-10-31 JST**
 - Last updated: **2026-10-31 JST**
-- Current baseline: **P1 Security Protocol / P1.1–P1.2 documentation authored**
+- Current baseline: **P1 Security Protocol / P1.1–P1.3 documentation authored**
 - Implementation status: **no code written**
 - Foundation branch: `docs/foundation-master-plan-20261031` (merged)
 - Foundation PR: https://github.com/akiralazycat/eidoron/pull/1 — merged into main on 2026-10-31 JST
@@ -25,7 +25,9 @@
 | P0.7 | Roadmap and handoff process | DONE | docs/05_IMPLEMENTATION_ROADMAP.md + this file |
 | P1.1 | Formalize adversaries/claims into normative spec | DONE (docs only) | 2026-10-31; `docs/08_SECURITY_TARGET.md`; C01–C08, SEC-001–013, DEN-001–005; no tests executed |
 | P1.2 | Library/FFI/device secure storage ADR | DONE (docs only) | 2026-10-31; ADR-0002 candidates and risks recorded; **no versions pinned, build or audit** |
-| P1.3 | Binary envelope v0 spec | TODO | **NEXT**; versioned format, key hierarchy, canonical AAD, nonce and test vectors |
+| P1.3 | Binary envelope v0 candidate and ADR-0003 | DONE (docs only) | 2026-10-31; `docs/09_ENVELOPE_FORMAT_V0.md`, ADR-0003; security review/interop vectors pending |
+| P1.4 | Security-oriented test/fuzz plan | TODO | **NEXT** — exact-byte vectors, SEC case mappings and failure matrix |
+| P1.5 | Security design review / release gate | TODO | Must resolve blockers before P2 |
 | P2 | Rust Vault implementation | NOT STARTED | Do not claim ready |
 | P3 | Safe cloud sync | NOT STARTED | Do not claim ready |
 | P4/P5 | iOS / Android native clients | NOT STARTED | Do not claim ready |
@@ -45,15 +47,18 @@
 | 2026-10-31 | P1.1 | Formal prospective security target and falsification map authored | Not yet reviewed or verified |
 | 2026-10-31 | ADR-0002 | RustCrypto + UniFFI preferred; device wrapper keys remain platform-native | Alternatives and FFI risks documented; pending P1.3 specification and on-device verification |
 | 2026-10-31 | OPEN-05 | Exact pinned crate releases and Rust MSRV/FFI build packaging | To confirm when implementation begins, after P1 review |
-| 2026-10-31 | OPEN-06 | Password encoding, raw KDF-to-root hierarchy, secure recovery and rollback | To specify in P1.3; no blind password-verifier-to-key reuse |
+| 2026-10-31 | OPEN-06 | Password encoding, raw KDF-to-root hierarchy, secure recovery and rollback | v0 candidate specified in P1.3; recovery credential design and P3 trusted freshness remain OPEN |
+| 2026-10-31 | ADR-0003 | Candidate Vault header+object+HEAD protocol, independent random root wrapped by passphrase | Enables cheap password rewrap; still exposes old snapshots and Vault existence |
+| 2026-10-31 | OPEN-07 | P1.3 parameter ceilings and parser/metadata schema need security review | Resolve through P1.4 tests + P1.5 assessment |
+| 2026-10-31 | OPEN-08 | Conditional HEAD publication, rollback and root-rotation migration need implementation-level protocol | P3; no cross-provider atomicity promise |
 
-## Immediate next task (P1.3)
+## Immediate next task (P1.4)
 
-**Goal:** write the reviewable versioned on-disk envelope and key schedule for baseline Vault, explicitly excluding unproven Shadow deniability.
-- Inputs: `docs/08_SECURITY_TARGET.md`, `docs/02_CRYPTO_ARCHITECTURE.md`, ADR-0002, T0/T1 security target and P3 rollback limitations.
-- Deliverable: `docs/09_ENVELOPE_FORMAT_V0.md` and ADR-0003, specifying canonical encoding, object header, secret/public fields, KDF params, salt/nonce requirements, domain separation, associated-data binding, verified-read API, resource limits, error classes, migration and recovery invariants.
-- Exit: no ambiguous byte layout or unauthenticated-context fields; proposed deterministic synthetic test-vector contract and key rotation path; **P1.4 tests + P1.5 review still required before P2 code**.
-- Priority: start with Vault; do not add an apparently 'hidden' flag or fake hidden-key safety guarantee.
+**Goal:** transform the candidate v0 byte format and security target into exact falsification/test fixtures before writing crypto code.
+- Inputs: `docs/09_ENVELOPE_FORMAT_V0.md`, ADR-0003, `docs/08_SECURITY_TARGET.md`, RFC 9106/5869/8949.
+- Deliverable: `docs/10_TEST_AND_FUZZ_PLAN.md` with SEC-001–013 and CLAIM-001 mapping, fixed synthetic fixture manifest, corrupted-byte vectors, parser resource bounds, canonical CBOR rejection, randomized failure injection, Rust/iOS/Android interoperability criteria and reproducibility commands for later P2.
+- Exit: every candidate format field and state transition has positive/negative tests and expected error; unresolved risks clearly escalated to P1.5.
+- Then P1.5 review with blockers resolved; P2 crypto code only after design approval. Shadow/Specter remain research.
 
 ## Session log — 2026-10-31 P1.1
 
@@ -72,6 +77,16 @@
 - **Documentation only**: no code, dependency manifest, `Cargo.lock`, platform build, cryptographic runtime test or independent audit.
 - Branch: `docs/p1-2-crypto-dependencies-ffi-20261031`; PR #3 merged to main (squash), 2026-10-31 JST.
 - Next: P1.3 envelope-format specification + ADR-0003.
+
+## Session log — 2026-10-31 P1.3
+
+- Re-read latest main documentation and checked RFC 9106 (Argon2id), RFC 5869 (HKDF), RFC 8949 (deterministic CBOR) and RustCrypto XChaCha20Poly1305 references.
+- Added `docs/09_ENVELOPE_FORMAT_V0.md` with fixed candidate binary layouts and `docs/decisions/0003-envelope-and-key-hierarchy.md`.
+- Resolved prior **Vault v0** key-choice ambiguity to a random RootSecret, password-derived wrapper and per-object HKDF key schedule. Shadow allocation and deniability still unresolved.
+- Updated README, crypto overview, roadmap, research references and dated progress/hand-off.
+- **No implementation, compiled tests, security audit or production-format freeze.**
+- Branch: `docs/p1-3-envelope-format-v0-20261031`; consult GitHub PR/merge history for final merge status.
+- Next: P1.4 test/fuzz plan, then P1.5 review before P2.
 
 ## Handoff recipe (another AI, mobile or desktop)
 

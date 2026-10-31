@@ -27,6 +27,14 @@
 - cargo-deny: https://github.com/EmbarkStudios/cargo-deny
 - Detailed decisions, caveats and implementation gates: [ADR-0002](decisions/0002-crypto-dependencies-ffi.md).
 
+## P1.3 binary envelope research (reviewed 2026-10-31)
+
+- RFC 8949 §4.2 core deterministic CBOR, including rejection of duplicate map keys: https://www.rfc-editor.org/rfc/rfc8949
+- NIST SP 800-38D Appendix D, replay is not inherently prevented by authenticated encryption: https://nvlpubs.nist.gov/nistpubs/legacy/sp/nistspecialpublication800-38d.pdf
+- Vault v0 candidate byte-format, KDF schedule and design limits: [09_ENVELOPE_FORMAT_V0.md](09_ENVELOPE_FORMAT_V0.md).
+- Design rationale and deferred alternatives: [ADR-0003](decisions/0003-envelope-and-key-hierarchy.md).
+- No published Eidoron test vectors or protocol audit yet.
+
 ## Deniable storage background
 
 - DataLair (PoPETs 2017), multi-snapshot adversary and write-only ORAM: https://crysp.petsymposium.org/popets/2017/popets-2017-0035.php
