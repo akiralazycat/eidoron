@@ -2,8 +2,8 @@
 
 - Created: **2026-10-31 JST**
 - Last updated: **2026-10-31 JST**
-- Current baseline: **P2.1 Rust scaffold authored; Cargo compilation/test verification outstanding**
-- Implementation status: **five Rust crates and synthetic scaffold authored; NO CRYPTO IMPLEMENTATION, NO VERIFIED BUILD**
+- Current baseline: **P2.1 Rust scaffold verified on rustc 1.99.1; cryptography not implemented**
+- Implementation status: **five path-only crates compile; 10 unit tests pass; NO CRYPTO IMPLEMENTATION**
 - Foundation branch: `docs/foundation-master-plan-20261031` (merged)
 - Foundation PR: https://github.com/akiralazycat/eidoron/pull/1 — merged into main on 2026-10-31 JST
 - Foundation merge commit: `7835fd40e5608f5525db9dcb625b30ddff395e7e`
@@ -17,8 +17,9 @@
 - P1.4 merge commit: `db7613737073231c812fed22b18559eedabd3534`
 - P1.5 internal security-review PR: https://github.com/akiralazycat/eidoron/pull/6 — merged on 2026-10-31 JST
 - P1.5 merge commit: `bc125274e84535574301adb04919a9851a1f1387`
-- P2.1 scaffold PR: https://github.com/akiralazycat/eidoron/pull/7 — merged 2026-10-31 JST, **build not verified**
+- P2.1 scaffold PR: https://github.com/akiralazycat/eidoron/pull/7 — merged 2026-10-31 JST; build was unverified at merge
 - P2.1 merge commit: `88eca61d21b36008e72ebcbc56e63bf52e5531b9`
+- P2.1-V compiler verification: recorded 2026-10-31 on rustc 1.99.1; see the P2.1-V session log below and `docs/PLAN.md`
 
 ## Current phase board
 
@@ -36,9 +37,9 @@
 | P1.3 | Binary envelope v0 candidate and ADR-0003 | DONE (docs only) | 2026-10-31; `docs/09_ENVELOPE_FORMAT_V0.md`, ADR-0003; security review/interop vectors pending |
 | P1.4 | Security-oriented test/fuzz plan | DONE (docs only) | 2026-10-31; `docs/10_TEST_AND_FUZZ_PLAN.md`; planned VEC/PAR/CBOR/GRAPH/SYNC and fuzz targets; **not run** |
 | P1.5 | Internal security design review and scope | DONE (docs only) | 2026-10-31; `docs/11_SECURITY_DESIGN_REVIEW.md`, ADR-0004. Not an external audit; release gate BLOCKED |
-| P2.1 | Synthetic local-only Rust workspace | PARTIAL | Code/tests authored; toolchain pinned; Cargo.lock hand-seeded; **cargo/rustc absent, checks NOT RUN**. See `docs/12_P2_IMPLEMENTATION.md` |
-| P2.1-V | Verify lockfile, fmt, test, clippy on actual Rust | BLOCKED | **NEXT** — use a cloud/dev environment with Rust; no GitHub Actions or user PC required |
-| P2.2 | Known-answer crypto vectors and suite evaluation | NOT STARTED | Only after P2.1-V passes |
+| P2.1 | Synthetic local-only Rust workspace | DONE (scaffold verified, no crypto) | rustc 1.99.1 fmt/test/clippy recorded in `docs/12_P2_IMPLEMENTATION.md` |
+| P2.1-V | Verify lockfile, fmt, test, clippy on actual Rust | DONE | 2026-10-31: rustc 1.99.1 (`58cf8f9c3`, 2026-10-13). fmt check, 10 unit tests, clippy `-D warnings`, Cargo-generated path-only lockfile. Next tasks in `docs/PLAN.md` |
+| P2.2 | Known-answer crypto vectors and suite evaluation | NOT STARTED | **NEXT** — synthetic vectors only; see `docs/PLAN.md` M1 |
 | P2 | Rust Vault implementation | NOT STARTED | Do not claim ready |
 | P3 | Safe cloud sync | NOT STARTED | Do not claim ready |
 | P4/P5 | iOS / Android native clients | NOT STARTED | Do not claim ready |
@@ -67,18 +68,27 @@
 | 2026-10-31 | ADR-0004 | Only synthetic local P2 prototype conditionally allowed | BLK-01..10 dispositions, trusted checkpoint, non-revoking rewrap, cloud disabled |
 | 2026-10-31 | OPEN-10 | Provider-specific CAS, durable cloud password update, remote freshness | P3 blocker; not part of P2 local prototype |
 | 2026-10-31 | OPEN-11 | Independent cryptography/code review and executed primitive/fuzz/mobile tests | Release and security claims not authorized |
-| 2026-10-31 | P2.1 | Rust 1.99.1 + edition 2024, five path-only crates, fail-closed stubs | Source authored; `Cargo.lock` hand-seeded and MUST be regenerated/verified by Cargo before treating it as trusted |
-| 2026-10-31 | OPEN-12 | Rust toolchain unavailable in current authoring container | No actual builds/tests; obtain safe cloud compiler/runtime (not user's PC) and record executed results |
+| 2026-10-31 | P2.1 | Rust 1.99.1 + edition 2024, five path-only crates, fail-closed stubs | Source authored; `Cargo.lock` was hand-seeded pending Cargo regeneration |
+| 2026-10-31 | OPEN-12 | Rust toolchain unavailable in the P2.1 authoring container | Resolved for the 2026-10-31 verification run, which had rustc 1.99.1. Other machines still need the pinned toolchain |
+| 2026-10-31 | P2.1-V | Execute the fmt/test/clippy gate and replace the hand-written lockfile | rustfmt was the failing check; compiler accepted the sources. Regenerated path-only `Cargo.lock`. 10 unit tests pass. Cryptography still absent |
 
-## Immediate next task (P2.1-V) — compile the scaffold
+## Immediate next task (P2.2) — one primitive known-answer test
 
-**Goal:** verify the authored Rust workspace and repair build/test issues before beginning P2.2 cryptography.
-- Inputs: `Cargo.toml`, `rust-toolchain.toml`, manually seeded `Cargo.lock`, `crates/`, `docs/12_P2_IMPLEMENTATION.md`.
-- Run using the pinned Rust toolchain: `cargo generate-lockfile --offline`, `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline`, `cargo clippy --workspace --all-targets --locked --offline -- -D warnings`.
-- Current check status: **NOT RUN** (authoring container has neither cargo nor rustc; external Rust downloads unavailable due DNS).
-- If any command fails, fix the relevant source, record stderr and rerun; don't mark passed without logs. Compare generated lockfile and commit changes.
-- Next after passing: P2.2 exact primitive KAT and independently verified synthetic vectors.
+**Goal:** pin RustCrypto crates and prove one published Argon2id vector before any vault encryption API returns ciphertext. Order and acceptance are in `docs/PLAN.md` (M1, then M2).
+- Inputs: ADR-0002 candidate crates, RFC 9106 test vector, `eidoron-crypto`, current path-only `Cargo.lock`.
+- Keep `encrypt_authenticated` returning `NotImplemented` until Argon2id, HKDF-SHA256 and XChaCha20-Poly1305 known-answer tests pass.
+- Expected bytes come from the published vector, not from a round trip of the code under test.
 - Explicit scope restrictions: no cloud, real user data, native secrets, Shadow/Specter, production security claims; no mandatory GitHub Actions or user's PC.
+
+## Session log — 2026-10-31 P2.1-V compiler verification
+
+- Read README, master plan, roadmap, P2 ledger and the five crate sources. P2.1-V was the unblocked next unit.
+- rustc 1.99.1 (`58cf8f9c3`, commit date 2026-10-13) was already active via `rust-toolchain.toml`.
+- `cargo test --workspace --locked --offline` passed (10 unit tests) and clippy `-D warnings` passed **before** source edits. The compiler was not rejecting the scaffold.
+- `cargo fmt --all -- --check` failed. Applied rustfmt (import order in `eidoron-test-vectors`, `assert_eq!` wrapping in `eidoron-provider-local` and `eidoron-vault`).
+- Deleted the hand-annotated `Cargo.lock` and regenerated it with `cargo generate-lockfile --offline`. Package graph unchanged: five path crates, no external crates, lockfile version 4. Cargo's standard header replaced the manual bootstrap comments.
+- Re-ran fmt check, locked offline tests and clippy; all exit 0. Recorded in `docs/12_P2_IMPLEMENTATION.md`. Next tasks: `docs/PLAN.md`.
+- No cryptographic behavior added. Passing tests still mean the fail-closed stubs and public shape checks behave as written.
 
 ## Session log — 2026-10-31 P2.1 scaffold
 

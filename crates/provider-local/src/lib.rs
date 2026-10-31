@@ -64,7 +64,10 @@ mod tests {
     fn immutable_retry_cannot_overwrite() {
         let mut store = MemoryStore::new();
         let id = [7u8; 32];
-        assert_eq!(store.put_immutable(id, b"synthetic-a"), Ok(PutOutcome::Created));
+        assert_eq!(
+            store.put_immutable(id, b"synthetic-a"),
+            Ok(PutOutcome::Created)
+        );
         assert_eq!(
             store.put_immutable(id, b"synthetic-a"),
             Ok(PutOutcome::IdenticalRetry)

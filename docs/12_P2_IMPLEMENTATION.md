@@ -2,7 +2,7 @@
 
 - Created / updated: **2026-10-31 JST**
 - Milestone: **P2.1 — synthetic local-only Rust workspace**
-- Status: **scaffold authored; cargo build and test not executed in this environment**
+- Status: **scaffold verified on rustc 1.99.1 (2026-10-31); cryptography not implemented**
 - Governing decisions: [P1.5 review](11_SECURITY_DESIGN_REVIEW.md), [ADR-0004](decisions/0004-security-review-scope-and-safety.md)
 - Previous plans: [Roadmap](05_IMPLEMENTATION_ROADMAP.md) and [P1.4 test plan](10_TEST_AND_FUZZ_PLAN.md)
 
@@ -20,43 +20,64 @@ Set up a reproducible local-only Rust workspace with **untrusted public format s
 | `eidoron-vault` | Session/vault integration | Explicitly unavailable operations | Real vault creation, import, unlock, export, recovery |
 | `eidoron-test-vectors` | Synthetic deterministic test harness | Deliberately unauthenticated byte shape fixtures | Genuine ciphertext, KAT, independent expected cryptographic bytes |
 
-No external crates in P2.1: dependency choice for RustCrypto/UniFFI was recorded by ADR-0002 but is deferred to P2.2/3 until exact versions and security review. `Cargo.lock` contains **path-only local crates** and was authored as a bootstrap lockfile, **not** generated/verified by Cargo. Re-generate with the pinned toolchain and confirm no unexpected changes on first executable run.
+No external crates in P2.1: dependency choice for RustCrypto/UniFFI was recorded by ADR-0002 but is deferred to P2.2/3 until exact versions and security review. `Cargo.lock` contains **path-only local crates** and, as of the 2026-10-31 verification, is the file produced by `cargo generate-lockfile --offline` on Cargo 1.99.1. The earlier hand-written bootstrap comments were removed by regenerating from scratch; the package graph did not change.
 
 ## Toolchain and executable checks
 
-- `rust-toolchain.toml` pins **1.99.1** (published 2026-10-15); edition 2024; no external dependencies.
-- On an environment with Rust installed, run:
-  1. `cargo generate-lockfile --offline` (should retain path-only graph; compare diff)
+- `rust-toolchain.toml` pins **1.99.1**; edition 2024; no external dependencies.
+- Repeatable checks:
+  1. `cargo generate-lockfile --offline` (path-only graph; compare diff before committing)
   2. `cargo fmt --all -- --check`
   3. `cargo test --workspace --locked --offline`
   4. `cargo clippy --workspace --all-targets --locked --offline -- -D warnings`
-- Record exact stdout/stderr and exit codes. Don't say tests 'pass' based on static inspection, or use CI runs from another commit.
-- No GitHub Actions required; tests can run on an appropriately provisioned cloud computer. User does not need a desktop.
-- Local authoring container in this session: **`cargo`/`rustc` unavailable, outbound DNS unavailable**. Thus command execution = **NOT RUN**. JavaScript structural checks and GitHub tree verification are separate from code compilation.
+- No GitHub Actions required. Record the toolchain with `rustc -vV` in the same change as any new claim that tests passed.
+
+### Executed on 2026-10-31 (P2.1-V)
+
+Host toolchain, from `rustc -vV`:
+
+- `rustc 1.99.1 (58cf8f9c3 2026-10-13)`
+- commit `58cf8f9c35b355199727627d07ae34a4e2846d67`
+- host `x86_64-unknown-linux-gnu`
+- LLVM 23.1.1
+- `rustfmt 1.10.0-stable` and `clippy 0.1.99` from the same toolchain
+
+| Command | Exit | Observed result |
+|---|---:|---|
+| `cargo test --workspace --locked --offline` on the unmodified scaffold | 0 | 10 unit tests passed, 0 doctests. Clippy `-D warnings` also exited 0 |
+| `cargo fmt --all -- --check` on the unmodified scaffold | 1 | rustfmt wanted wrapped `assert_eq!` calls and reordered imports. No type error |
+| `cargo generate-lockfile --offline` after deleting the hand-written lockfile | 0 | version 4, five path packages, no checksummed external crates |
+| `cargo fmt --all -- --check` after rustfmt | 0 | no diff |
+| `cargo test --workspace --locked --offline` after rustfmt | 0 | same 10 unit tests |
+| `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` | 0 | no warnings |
+| `cargo tree --workspace --locked --offline` | 0 | `eidoron-vault` depends on crypto, format and provider-local; `eidoron-test-vectors` depends on format; no crates.io packages |
+
+The authoring container that landed P2.1 had no cargo/rustc, which is why this gate stayed blocked after PR #7. The sources compiled on first execution. The failing prescribed check was rustfmt, and the lockfile needed to be regenerated so it would be Cargo's file rather than a hand-written one with a Cargo header prepended.
 
 ## Acceptance / progress
 
 | Task | State | Evidence |
 |---|---|---|
 | P2.1a Read latest docs, choose no-cloud scope | DONE | P1.5/ADR-0004; git baseline |
-| P2.1b Five crates + workspace configuration | AUTHORED | `Cargo.toml`, `crates/*` |
-| P2.1c Toolchain and lock file | AUTHORED / UNVERIFIED | `rust-toolchain.toml` and hand-authored `Cargo.lock` |
-| P2.1d Synthetic immutable memory store & untrusted byte shape fixtures | AUTHORED / UNTESTED | crate source and unit tests; no crypto |
-| P2.1e Cargo fmt/test/clippy + lock regeneration | BLOCKED | Rust toolchain absent in authoring runtime |
-| P2.1f PR and handoff documentation | AUTHORED | this document and `06_PROGRESS_HANDOFF.md` |
+| P2.1b Five crates + workspace configuration | DONE | `Cargo.toml`, `crates/*`; `cargo tree` shows five path crates |
+| P2.1c Toolchain and lock file | DONE | `rust-toolchain.toml`; `Cargo.lock` regenerated by Cargo 1.99.1 |
+| P2.1d Synthetic immutable memory store & untrusted byte shape fixtures | DONE (unit tests) | 10 tests passed; still no crypto |
+| P2.1e Cargo fmt/test/clippy + lock regeneration | DONE | 2026-10-31 execution table above |
+| P2.1f PR and handoff documentation | DONE | this document, `06_PROGRESS_HANDOFF.md`, `PLAN.md` |
 
-### Invariants to check on first execution
-- Workspace resolves to exactly five path-only members, no downloaded dependencies.
-- `eidoron-crypto::encrypt_authenticated` always returns `NotImplemented`; there is no fake encryption.
-- `inspect_untrusted_*` functions validate only public shape; they never return `VerifiedPlaintext`.
-- Inputs shorter/longer than 136-byte header, 66-byte HEAD, or 106..1,048,680-byte object bounds are rejected.
-- Argon2 resource claims are bounded before any KDF work (none exists yet).
-- `MemoryStore` refuses different bytes at an existing opaque ID, permits byte-identical retry only.
-- Test fixtures use synthetic reserved repeat-byte markers; object authentication tags are knowingly invalid.
+### Invariants observed on first execution
+
+- `cargo tree --locked --offline` listed exactly five path-only members and no crates.io packages.
+- The crypto unit test observed `encrypt_authenticated` returning `NotImplemented`.
+- Format tests observed rejection of a short header, a zero-filled 136-byte header (`BadMagic`), a zero-filled 66-byte HEAD (`BadMagic`), and objects of length `MIN_OBJECT_LEN - 1` and `MAX_OBJECT_LEN + 1`.
+- The test-vector test observed an Argon2 `m_cost_kib` of `u32::MAX` rejected as `ResourcePolicy`. No KDF is called anywhere in the workspace.
+- The memory-store test observed an identical retry and rejection of different bytes at the same id.
+- Return types are `UntrustedHeader`, `UntrustedHead` and `UntrustedObject`. There is no `VerifiedPlaintext` type in the tree.
+- HEAD lengths other than 66, and header mutations other than length and all-zero magic, are implemented in `inspect_untrusted_*` but were not separate assertions in this run. They are M3 in [PLAN.md](PLAN.md).
 
 ## Next bounded work unit
 
-**P2.1 verification** should happen before treating the scaffold as compile-ready. First reproducible run of Rust 1.99.1 must regenerate lockfile, run format/test/clippy and fix any reported errors in a follow-up PR. Only then proceed to **P2.2**: independent primitive known-answer test vectors and exact-byte fixture validation. At P2.2 retain the explicit "DO NOT USE WITH REAL DATA" flag.
+P2.1 verification is recorded above. Next is **P2.2**, in the order written in [PLAN.md](PLAN.md): pin exact RustCrypto versions, then one published Argon2id known-answer test, then HKDF-SHA256 and XChaCha20-Poly1305. `encrypt_authenticated` stays `NotImplemented` until those three pass. Synthetic inputs only. Real files stay out of the tree.
 
 ## Security / release state
 
