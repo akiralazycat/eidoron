@@ -2,8 +2,8 @@
 
 - Created: **2026-10-31 JST**
 - Last updated: **2026-10-31 JST**
-- Current baseline: **M4 object AEAD passes; vault session status is still NotImplemented**
-- Implementation status: **object bodies seal and open; 24 unit tests pass; NO VAULT SESSION**
+- Current baseline: **M5 genesis predecessor check passes; vault session status is still NotImplemented**
+- Implementation status: **one commit rule on decrypted bytes; 25 unit tests pass; NO VAULT SESSION, NO CBOR DECODER**
 - Foundation branch: `docs/foundation-master-plan-20261031` (merged)
 - Foundation PR: https://github.com/akiralazycat/eidoron/pull/1 — merged into main on 2026-10-31 JST
 - Foundation merge commit: `7835fd40e5608f5525db9dcb625b30ddff395e7e`
@@ -39,7 +39,7 @@
 | P1.5 | Internal security design review and scope | DONE (docs only) | 2026-10-31; `docs/11_SECURITY_DESIGN_REVIEW.md`, ADR-0004. Not an external audit; release gate BLOCKED |
 | P2.1 | Synthetic local-only Rust workspace | DONE (scaffold verified, no crypto) | rustc 1.99.1 fmt/test/clippy recorded in `docs/12_P2_IMPLEMENTATION.md` |
 | P2.1-V | Verify lockfile, fmt, test, clippy on actual Rust | DONE | 2026-10-31: rustc 1.99.1 (`58cf8f9c3`, 2026-10-13). fmt check, 10 unit tests, clippy `-D warnings`, Cargo-generated path-only lockfile. Next tasks in `docs/PLAN.md` |
-| P2.2 | Known-answer crypto vectors and suite evaluation | PARTIAL | M1, M2 and M4 done 2026-10-31. **NEXT** is M5 commit-shape checks. `status()` remains `NotImplemented`. See `docs/PLAN.md` |
+| P2.2 | Known-answer crypto vectors and suite evaluation | PARTIAL | M1, M2, M4 and M5.20 done 2026-10-31. **NEXT** is M5.21 directory-name rejection. `status()` remains `NotImplemented`. See `docs/PLAN.md` |
 | P2 | Rust Vault implementation | NOT STARTED | Do not claim ready |
 | P3 | Safe cloud sync | NOT STARTED | Do not claim ready |
 | P4/P5 | iOS / Android native clients | NOT STARTED | Do not claim ready |
@@ -74,12 +74,24 @@
 | 2026-10-31 | P2.2-M1 | Pin RustCrypto and check three published vectors | `argon2` 0.6.0, `hkdf` 0.13.0, `sha2` 0.11.1, `chacha20poly1305` 0.11.0, `zeroize` 1.9.1. Expected bytes transcribed from RFC 9106 §5.3, RFC 5869 A.1 and draft-irtf-cfrg-xchacha-03 A.3.1. Vault encrypt API unchanged |
 | 2026-10-31 | P2.2-M2 | Derive RawPwdKey, WrapKey and ObjectKey for one synthetic vector | Expected bytes from `crates/test-vectors/scripts/key_schedule_kat.py` (argon2-cffi 25.1.0, Python hmac HKDF, PyNaCl 1.6.2). Wrong passphrase, flipped AAD and flipped tag share `Unavailable`. `encrypt_authenticated` unchanged |
 | 2026-10-31 | M4 | Seal object bodies with XChaCha20-Poly1305 under ObjectKey | Expected ciphertext from `crates/test-vectors/scripts/object_aead_kat.py` (PyNaCl 1.6.2). Every release seal draws a fresh 24-byte nonce from `getrandom` 0.4.3. Fixed nonce is `cfg(test)` only. Wrong key, AAD/ciphertext/tag flips and truncation share `Unavailable`. Crypto does not return a previous ciphertext for a repeated plaintext |
-| 2026-10-31 | M4-nonce | Fresh OS nonce on every object seal | Owner decision on PR #11: identical plaintext must not reuse or echo the previous nonce/ciphertext, because that reveals plaintext equality. Idempotency is a storage concern keyed by object_id and content hash |
+| 2026-10-31 | M4-nonce | Fresh OS nonce on every object seal | Owner decision on PR #11: identical plaintext must not reuse or echo the previous nonce/ciphertext, because that reveals plaintext equality. Idempotency is a storage concern |
+| 2026-10-31 | M5-hash | Storage idempotency hash must be keyed or encrypted | Owner decision: HMAC, keyed BLAKE, or an HKDF-derived vault key. A plain hash of plaintext must not be stored or used as an id |
+| 2026-10-31 | M5.20 | Genesis commit predecessor check | Decrypted body only. Kind 0x01, generation 0, null prior. No general CBOR decoder. Fixtures from `scripts/genesis_commit_kat.py` |
 
-## Immediate next task (M5) — commit predecessor check
+## Immediate next task (M5.21) — directory name rejection
 
-**Goal:** given a decrypted commit body, accept kind `0x01` and generation 0 only when the predecessor is empty. Do not add a CBOR decoder in that change.
+**Goal:** reject directory names that are empty, `/`, `.`, `..`, or contain NUL, as a pure function. No CBOR decoder and no NFC check in that change.
 - Explicit scope restrictions: no cloud, real user data, native secrets, Shadow/Specter, production security claims; no mandatory GitHub Actions or user's PC.
+
+## Session log — 2026-10-31 M5 genesis predecessor
+
+- Started from main at `baa9c71` (PR #11 merged).
+- `eidoron_vault::check_genesis_predecessor` reads a decrypted `kind || schema || payload` only through CBOR map keys 0 and 1.
+- Kind `0x01`, schema `0x00`, generation 0, and null prior returns `EmptyPredecessor`. Generation 0 with a byte string, including a zero-length one, returns `PredecessorNotEmpty`. Other kinds return `NotACommit`. Other generations return `NotGenesis` and are not judged. Non-minimal integers in the fields that are read return `Unreadable`.
+- Fixture bytes and expected labels were produced by `crates/test-vectors/scripts/genesis_commit_kat.py` from RFC 8949 preferred-length rules, then stored in `crates/test-vectors/src/commit_genesis.rs`.
+- Owner decision: a storage idempotency hash must be keyed (HMAC, keyed BLAKE, or HKDF from vault secrets) or stored encrypted. A plain hash of plaintext is forbidden. Recorded in `docs/09_ENVELOPE_FORMAT_V0.md` and `docs/PLAN.md`.
+- `import_encrypted` and `status()` remain `NotImplemented`. No CBOR decoder crate was added.
+- `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (25 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0 on rustc 1.99.1.
 
 ## Session log — 2026-10-31 M4 object AEAD
 

@@ -91,7 +91,9 @@ Provider path is a lower-case hex encoding of the **32-byte object_id** (64 char
 
 Each object is **immutable**: modification creates a new random ID, freshly derived object key and fresh random nonce; never overwrite an object at an existing ID. A storage retry may resend the *already sealed* ciphertext bytes of a previously prepared immutable object. It MUST NOT ask the cipher to encrypt new plaintext under the same ID and nonce.
 
-**Decision (2026-10-31, owner, recorded while PR #11 was open):** the cipher MUST draw a fresh 24-byte OS CSPRNG nonce on every seal, including when the plaintext bytes match an earlier seal. Identical plaintexts therefore yield different ciphertexts. Returning a previous nonce and ciphertext for a repeated plaintext reveals plaintext equality and is forbidden. The cipher MUST NOT compare or decrypt a previous ciphertext in order to accept or reject a new seal. Idempotency, if required, belongs to the storage layer and is keyed by `object_id` together with a content hash of the plaintext. It is not decided by ciphertext equality.
+**Decision (2026-10-31, owner, recorded while PR #11 was open):** the cipher MUST draw a fresh 24-byte OS CSPRNG nonce on every seal, including when the plaintext bytes match an earlier seal. Identical plaintexts therefore yield different ciphertexts. Returning a previous nonce and ciphertext for a repeated plaintext reveals plaintext equality and is forbidden. The cipher MUST NOT compare or decrypt a previous ciphertext in order to accept or reject a new seal. Idempotency, if required, belongs to the storage layer and is keyed by `object_id` together with a **keyed** content hash, as decided below. It is not decided by ciphertext equality.
+
+**Decision (2026-10-31, owner):** a content hash used for storage idempotency MUST be keyed, or the hash MUST be stored only as ciphertext. Acceptable keyed constructions include HMAC-SHA256, keyed BLAKE2, or a key produced by HKDF from vault secrets. A plain hash of the plaintext (for example SHA-256 of the file bytes, with no key) MUST NOT be stored and MUST NOT be used as a storage key or deduplication id. Equal plain hashes would show the storage provider that two objects have the same plaintext.
 
 ### Authenticated inner object kinds
 
@@ -115,6 +117,7 @@ The following maps are *complete* v0 proposals (integer keys appear in ascending
 `{ 0: generation:uint64, 1: prior_commit_id:bstr(32)|null, 2: root_directory_object_id:bstr(32), 3: commit_id:bstr(16) }`
 
 - `generation=0` must have `prior_commit_id=null`; `generation>0` must have a predecessor ID.
+- **Implementation limit (2026-10-31, M5):** the code check reads a decrypted body only far enough to apply the generation-0 rule. Kind `0x01`, schema `0x00`, generation 0, and a null predecessor is `EmptyPredecessor`. Generation 0 with any byte string, including an empty one, is rejected. Kind other than `0x01` is not a commit. Generation other than 0 is reported and not judged. Keys 2 and 3, non-commit payloads, and a general CBOR decoder are not implemented. Non-minimal integer encodings of the fields that are read are rejected.
 - `commit_id` is a freshly random 16-byte **logical change identifier** (distinct from 32-byte object ID).
 - The untrusted HEAD's expected generation and root object ID MUST match these decrypted fields.
 - When previous root is locally available, check declared prior ID and generation chain; malicious provider can withhold older objects and cause availability failure. A valid *older entire chain* cannot be detected without trusted freshness state.
