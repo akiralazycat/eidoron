@@ -17,8 +17,9 @@ pub use object_aead::{
     encrypt_authenticated,
 };
 pub use schedule::{
-    KdfParams, ObjectKey, RawPwdKey, RootSecret, WRAPPED_ROOT_LEN, WrapKey, derive_object_key,
-    derive_raw_pwd_key, derive_wrap_key, open_root, seal_root,
+    ContentIdKey, KdfParams, ObjectKey, RawPwdKey, RootSecret, WRAPPED_ROOT_LEN, WrapKey,
+    content_id, derive_content_id_key, derive_object_key, derive_raw_pwd_key, derive_wrap_key,
+    open_root, seal_root,
 };
 
 /// Status of the cryptographic backend. This is not a security assurance.

@@ -143,9 +143,17 @@ On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked 
 
 On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (36 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0.
 
+## Owner decisions implemented 2026-10-31
+
+- Directory names are stored as NFC (`unicode-normalization` 0.1.26). NFC and NFD `é` are one name.
+- Content id is HMAC-SHA256 under `ContentIdKey`, derived with info `eidoron/v0/content-id || vault_id`. Expected bytes are from `crates/test-vectors/scripts/content_id_kat.py`. The id is not a provider-visible name.
+- Conditional HEAD is `ConditionalHead` plus `MemoryHead`. The experiment checklist is [13_S3_CONDITIONAL_HEAD.md](13_S3_CONDITIONAL_HEAD.md). No network client.
+
+On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (39 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0.
+
 ## Next bounded work unit
 
-PLAN item 24 stays deferred: cloud, conditional HEAD publication, remote rewrap, biometrics, and a second Shadow password. A provider must be chosen and its conditional writes recorded before that work. Open questions remain in [PLAN.md](PLAN.md): NFC/NFD directory names, and which keyed hash to use.
+Record the eight provider experiments before adding R2 or S3 code. Remote rewrap, biometrics, and a second Shadow password stay out. Crash-safe directory writes are still untested.
 
 ## Security / release state
 

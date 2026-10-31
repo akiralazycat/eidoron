@@ -10,6 +10,7 @@ publish.workspace = true
 eidoron-crypto = { path = "../crypto" }
 eidoron-format = { path = "../format" }
 eidoron-provider-local = { path = "../provider-local" }
+unicode-normalization.workspace = true
 
 [dev-dependencies]
 eidoron-test-vectors = { path = "../test-vectors" }

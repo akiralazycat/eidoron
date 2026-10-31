@@ -7,8 +7,12 @@
 //! only when the opaque bytes already stored for that id are identical. That
 //! comparison is not a hash of plaintext.
 
+mod conditional_head;
 mod temp_dir;
 
+pub use conditional_head::{
+    ConditionalHead, Etag, HeadError, HeadPrecondition, MemoryHead, StoredHead,
+};
 pub use temp_dir::TempDirStore;
 
 use std::collections::HashMap;

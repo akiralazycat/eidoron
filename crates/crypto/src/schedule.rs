@@ -13,6 +13,7 @@ use chacha20poly1305::{
     aead::{Aead, KeyInit, Payload},
 };
 use hkdf::Hkdf;
+use hmac::{Hmac, Mac};
 use sha2::Sha256;
 use zeroize::Zeroize;
 
@@ -20,6 +21,7 @@ use crate::CryptoError;
 
 const PASSWORD_WRAP_LABEL: &[u8] = b"eidoron/v0/password-wrap";
 const OBJECT_AEAD_LABEL: &[u8] = b"eidoron/v0/object-aead";
+const CONTENT_ID_LABEL: &[u8] = b"eidoron/v0/content-id";
 const MIN_MEMORY_KIB: u32 = 65_536;
 const MAX_MEMORY_KIB: u32 = 262_144;
 const MAX_ITERATIONS: u32 = 10;
@@ -53,6 +55,9 @@ pub struct WrapKey([u8; 32]);
 /// 32-byte per-object AEAD key.
 pub struct ObjectKey([u8; 32]);
 
+/// 32-byte HMAC key for a content id. Not an object name and not a plaintext hash.
+pub struct ContentIdKey([u8; 32]);
+
 /// 32-byte random vault root. Independent of the passphrase.
 pub struct RootSecret([u8; 32]);
 
@@ -85,6 +90,7 @@ macro_rules! secret_bytes {
 secret_bytes!(RawPwdKey);
 secret_bytes!(WrapKey);
 secret_bytes!(ObjectKey);
+secret_bytes!(ContentIdKey);
 secret_bytes!(RootSecret);
 
 /// `[u8; 32]` is `Copy`, so wipe the parameter after the owned copy is taken.
@@ -107,6 +113,12 @@ impl WrapKey {
 }
 
 impl ObjectKey {
+    fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(take_secret(bytes))
+    }
+}
+
+impl ContentIdKey {
     fn from_bytes(bytes: [u8; 32]) -> Self {
         Self(take_secret(bytes))
     }
@@ -174,6 +186,31 @@ pub fn derive_object_key(
         OBJECT_AEAD_LABEL,
         object_id,
     ))
+}
+
+/// `ContentIdKey = HKDF-Expand(HKDF-Extract(salt=vault_id, IKM=RootSecret), "eidoron/v0/content-id" || vault_id, 32)`.
+pub fn derive_content_id_key(root: &RootSecret, vault_id: &[u8; 16]) -> ContentIdKey {
+    ContentIdKey::from_bytes(hkdf_32(
+        root.as_bytes(),
+        vault_id,
+        CONTENT_ID_LABEL,
+        vault_id,
+    ))
+}
+
+/// HMAC-SHA256 of `plaintext` under a content-id key.
+///
+/// This is not SHA-256(plaintext). The 32-byte result still matches for equal
+/// plaintexts, so it must not be stored where a provider can see it. Keep it
+/// inside an encrypted index.
+pub fn content_id(key: &ContentIdKey, plaintext: &[u8]) -> [u8; 32] {
+    let mut mac =
+        Hmac::<Sha256>::new_from_slice(key.as_bytes()).expect("hmac-sha256 accepts a 32-byte key");
+    mac.update(plaintext);
+    let digest = mac.finalize().into_bytes();
+    let mut out = [0u8; 32];
+    out.copy_from_slice(&digest);
+    out
 }
 
 /// Encrypt `RootSecret` under `WrapKey`. The result is ciphertext followed by the tag.
@@ -256,6 +293,9 @@ fn xchacha(key: &[u8; 32]) -> XChaCha20Poly1305 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use eidoron_test_vectors::content_id::{
+        CONTENT_ID, CONTENT_ID_KEY, CONTENT_PLAINTEXT, PLAIN_SHA256,
+    };
     use eidoron_test_vectors::key_schedule::{
         ITERATIONS, LANES, MEMORY_KIB, OBJECT_ID, OBJECT_KEY, OTHER_PASSPHRASE, PASSPHRASE,
         RAW_PWD_KEY, ROOT_SECRET, SALT, VAULT_ID, WRAP_KEY, WRAPPED_ROOT,
@@ -273,6 +313,19 @@ mod tests {
     fn aad() -> [u8; 88] {
         let header = synthetic_untrusted_header();
         header[0..88].try_into().expect("header prefix is 88 bytes")
+    }
+
+    #[test]
+    fn content_id_matches_independent_oracle_and_is_not_a_plain_hash() {
+        let root = RootSecret::from_bytes(ROOT_SECRET);
+        let key = derive_content_id_key(&root, &VAULT_ID);
+        assert_eq!(key.as_bytes(), &CONTENT_ID_KEY);
+        assert_eq!(format!("{key:?}"), "ContentIdKey(redacted)");
+        let id = content_id(&key, CONTENT_PLAINTEXT);
+        assert_eq!(id, CONTENT_ID);
+        assert_ne!(id, PLAIN_SHA256);
+        let other = content_id(&key, b"synthetic-content-2");
+        assert_ne!(other, id);
     }
 
     #[test]

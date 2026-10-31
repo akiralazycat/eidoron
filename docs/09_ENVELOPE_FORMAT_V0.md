@@ -93,7 +93,12 @@ Each object is **immutable**: modification creates a new random ID, freshly deri
 
 **Decision (2026-10-31, owner, recorded while PR #11 was open):** the cipher MUST draw a fresh 24-byte OS CSPRNG nonce on every seal, including when the plaintext bytes match an earlier seal. Identical plaintexts therefore yield different ciphertexts. Returning a previous nonce and ciphertext for a repeated plaintext reveals plaintext equality and is forbidden. The cipher MUST NOT compare or decrypt a previous ciphertext in order to accept or reject a new seal. Idempotency, if required, belongs to the storage layer and is keyed by `object_id` together with a **keyed** content hash, as decided below. It is not decided by ciphertext equality.
 
-**Decision (2026-10-31, owner):** a content hash used for storage idempotency MUST be keyed, or the hash MUST be stored only as ciphertext. Acceptable keyed constructions include HMAC-SHA256, keyed BLAKE2, or a key produced by HKDF from vault secrets. A plain hash of the plaintext (for example SHA-256 of the file bytes, with no key) MUST NOT be stored and MUST NOT be used as a storage key or deduplication id. Equal plain hashes would show the storage provider that two objects have the same plaintext.
+**Decision (2026-10-31, owner, revised the same day):** the idempotency content id is HMAC-SHA256 under a dedicated 32-byte key.
+
+- `ContentIdKey = HKDF-Expand(HKDF-Extract(salt=vault_id, IKM=RootSecret), ASCII("eidoron/v0/content-id") || vault_id, 32)`.
+- `ContentId = HMAC-SHA256(ContentIdKey, plaintext_bytes)`.
+- This is not SHA-256(plaintext). A plain hash MUST NOT be stored and MUST NOT be used as a storage key.
+- Equal plaintexts produce equal content ids. The id therefore MUST NOT be used as a cleartext object name or other provider-visible key. Keep it inside an encrypted index. `TempDirStore` does not publish it. It still compares opaque bytes of one id when a caller resends a prepared blob.
 
 ### Authenticated inner object kinds
 
@@ -128,8 +133,9 @@ The following maps are *complete* v0 proposals (integer keys appear in ascending
 `{ 0: dir_id:bstr(16), 1: parent_dir_id:bstr(16)|null, 2: entries:array }`
 
 - Each entry is exactly `[name:text, child_kind:uint, child_object_id:bstr(32)]`; `child_kind=2` (directory) or `3` (file).
-- Names MUST be Unicode NFC, 1..255 UTF-8 bytes, forbid U+0000, slash, `.` and `..`; MUST be unique within a directory by identical UTF-8 bytes. No locale-dependent case folding in v0.
-- **Implementation limit (2026-10-31, M5.21):** `check_directory_name` rejects an empty name, a name longer than 255 UTF-8 bytes, a name containing `/` or U+0000, and the whole names `.` and `..`. It does not trim, and it does not check NFC. `file.txt`, `.hidden`, and `...` are accepted. Uniqueness, sort order, and depth are not checked.
+- Names MUST be stored as Unicode NFC, 1..255 UTF-8 bytes after normalization, forbid U+0000, slash, `.` and `..`; MUST be unique within a directory by identical NFC UTF-8 bytes. No locale-dependent case folding in v0.
+- **Decision (2026-10-31, owner):** normalize to NFC on store with the pinned `unicode-normalization` crate. Two inputs that normalize to the same string, including NFC `é` (U+00E9) and NFD `e` + U+0301, are the **same** directory name. The check returns that stored string. It does not keep both spellings.
+- **Implementation limit (2026-10-31, M5.21, updated the same day):** `check_directory_name` normalizes first, then rejects an empty result, a result longer than 255 UTF-8 bytes, a result containing `/` or U+0000, and the whole names `.` and `..`. `file.txt`, `.hidden`, and `...` are accepted. A directory set that would notice a second insert is not built here.
 - Entries MUST be sorted by unsigned lexicographic order of the **UTF-8 name bytes**; max 4096 entries. Root directory has `parent_dir_id=null`; nonroot has an authenticated parent logical ID matching the referring directory.
 - The same directory logical ID referenced from two different logical parents or a directory cycle is invalid. Directory depth ≤ 64.
 
@@ -164,6 +170,8 @@ The provider stores exactly one `vault.head` pointer for the current committed r
 Read sequence: parse HEAD under strict bounds → find object by `commit_root_object_id` → derive ObjectKey and fully authenticate object → require kind 0x01, `generation` and expected vault ID match → validate object graph. A replaced HEAD pointing to an older *valid* root is not detected by AEAD alone. A local trusted record of last-seen generation/object ID can flag suspected rollback, but recovery on a new device without such a record MUST show **freshness unknown**, not 'current'. The provider may suppress HEAD entirely.
 
 Write proposal: stage all immutable objects and verify successful remote persistence → publish HEAD with conditional write / compare-and-swap against the previously observed version → on CAS failure preserve both edits, fetch/verify competing roots and resolve or produce conflict revisions. P3 MUST define exact provider consistency semantics and visibility/durability; this v0 document does **not** claim that all providers have safe CAS.
+
+**Decision (2026-10-31, owner):** the first cloud family is S3-compatible storage with conditional writes. The candidates to measure are Cloudflare R2 and AWS S3. The in-memory trait uses `If-None-Match: *` to create and `If-Match` to replace. No live provider is trusted until the experiment records in [13_S3_CONDITIONAL_HEAD.md](13_S3_CONDITIONAL_HEAD.md) exist. This repository does not store credentials and does not call a network API for HEAD.
 
 ## 6. Validation order and error taxonomy
 

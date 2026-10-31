@@ -19,8 +19,8 @@ Eidoron は、端末側で暗号化してからクラウドへ同期する、プ
 
 - Phase 0 / Foundation documentation — **completed (2026-10-31)**
 - Phase 1 / Threat-model and crypto protocol review — **P1.1–P1.5 documents and internal review recorded; implementation/independent audit unverified**
-- Rust code — **temporary directory store passes on rustc 1.99.1; crash safety, sync and deniability are NOT claimed**
-- Phase 2 / Rust Vault — **M6.23 writes opaque ids as lowercase hex files; identical bytes may be retried; `status()` is still NotImplemented**
+- Rust code — **NFC names, HMAC content ids, and an in-memory conditional HEAD pass on rustc 1.99.1; no cloud client is linked**
+- Phase 2 / Rust Vault — **directory names are stored as NFC; content ids are HMAC-SHA256; HEAD uses If-Match / If-None-Match in memory only; `status()` is still NotImplemented**
 - Production readiness — **none**
 
 ## Documentation index
@@ -35,6 +35,7 @@ Eidoron は、端末側で暗号化してからクラウドへ同期する、プ
 - [Rust implementation plan and verification status (P2)](docs/12_P2_IMPLEMENTATION.md)
 - [Development plan after compiler verification](docs/PLAN.md)
 - [Storage, deniability research and sync](docs/03_STORAGE_SYNC.md)
+- [S3 conditional HEAD experiment plan](docs/13_S3_CONDITIONAL_HEAD.md)
 - [Product and intelligence-inspired UX](docs/04_PRODUCT_UX.md)
 - [Implementation phases and acceptance gates](docs/05_IMPLEMENTATION_ROADMAP.md)
 - [Progress ledger and AI handoff](docs/06_PROGRESS_HANDOFF.md)
@@ -44,7 +45,7 @@ Eidoron は、端末側で暗号化してからクラウドへ同期する、プ
 - [P1.5 scope and security restrictions — ADR-0004](docs/decisions/0004-security-review-scope-and-safety.md)
 - [Research and validation references](docs/07_RESEARCH_VALIDATION.md)
 
-**Next work unit:** do not start cloud sync, remote rewrap, or biometrics until a provider and its conditional writes are chosen and recorded. Open questions: NFC/NFD directory names, and which keyed hash to use. Task order: [docs/PLAN.md](docs/PLAN.md).
+**Next work unit:** record the eight conditional-write experiments in [docs/13_S3_CONDITIONAL_HEAD.md](docs/13_S3_CONDITIONAL_HEAD.md) before linking R2 or S3. Do not commit credentials. Task order: [docs/PLAN.md](docs/PLAN.md).
 
 License: [MIT](LICENSE). An open-source license is not a security certification.
 
