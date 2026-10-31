@@ -78,15 +78,71 @@ pub fn check_genesis_predecessor(decrypted: &[u8]) -> Result<GenesisPredecessor,
     if key_1 != 1 {
         return Err(CommitCheckError::Unreadable);
     }
-    let prior_is_null = cursor.prior_is_null()?;
+    let prior = cursor.prior()?;
     if generation != 0 {
         return Ok(GenesisPredecessor::NotGenesis);
     }
-    if prior_is_null {
+    if prior.is_null() {
         Ok(GenesisPredecessor::EmptyPredecessor)
     } else {
         Err(CommitCheckError::PredecessorNotEmpty)
     }
+}
+
+/// Parent object id of a decrypted commit body.
+///
+/// Generation 0 with a null predecessor has no parent. A later generation
+/// returns its 32-byte predecessor. This does not walk a store.
+pub fn read_commit_parent(decrypted: &[u8]) -> Result<Option<[u8; 32]>, CommitCheckError> {
+    Ok(parse_commit_link(decrypted)?.parent)
+}
+
+/// Generation field of a decrypted commit body. This does not walk a store.
+pub fn read_commit_generation(decrypted: &[u8]) -> Result<u64, CommitCheckError> {
+    Ok(parse_commit_link(decrypted)?.generation)
+}
+
+struct CommitLink {
+    generation: u64,
+    parent: Option<[u8; 32]>,
+}
+
+fn parse_commit_link(decrypted: &[u8]) -> Result<CommitLink, CommitCheckError> {
+    if decrypted.len() < 2 || decrypted[0] != COMMIT_KIND || decrypted[1] != BODY_SCHEMA {
+        return Err(CommitCheckError::Unreadable);
+    }
+    let mut cursor = Cursor {
+        data: &decrypted[2..],
+        index: 0,
+    };
+    let (major, argument) = cursor.header()?;
+    if major != MAJOR_MAP {
+        return Err(CommitCheckError::Unreadable);
+    }
+    let pairs = cursor.argument(argument)?;
+    if pairs < 2 {
+        return Err(CommitCheckError::Unreadable);
+    }
+    if cursor.uint()? != 0 {
+        return Err(CommitCheckError::Unreadable);
+    }
+    let generation = cursor.uint()?;
+    if cursor.uint()? != 1 {
+        return Err(CommitCheckError::Unreadable);
+    }
+    let prior = cursor.prior()?;
+    let parent = match (generation, prior) {
+        (0, Prior::Null) => None,
+        (0, Prior::Bytes(_)) => return Err(CommitCheckError::PredecessorNotEmpty),
+        (_, Prior::Null) => return Err(CommitCheckError::Unreadable),
+        (_, Prior::Bytes(bytes)) if bytes.len() == 32 => {
+            let mut id = [0u8; 32];
+            id.copy_from_slice(&bytes);
+            Some(id)
+        }
+        (_, Prior::Bytes(_)) => return Err(CommitCheckError::Unreadable),
+    };
+    Ok(CommitLink { generation, parent })
 }
 
 struct Cursor<'a> {
@@ -154,10 +210,10 @@ impl<'a> Cursor<'a> {
         self.argument(argument)
     }
 
-    fn prior_is_null(&mut self) -> Result<bool, CommitCheckError> {
+    fn prior(&mut self) -> Result<Prior, CommitCheckError> {
         let (major, argument) = self.header()?;
         if major == MAJOR_SIMPLE && argument == SIMPLE_NULL {
-            return Ok(true);
+            return Ok(Prior::Null);
         }
         if major != MAJOR_BSTR {
             return Err(CommitCheckError::Unreadable);
@@ -171,8 +227,20 @@ impl<'a> Cursor<'a> {
         if end > self.data.len() {
             return Err(CommitCheckError::Unreadable);
         }
+        let bytes = self.data[self.index..end].to_vec();
         self.index = end;
-        Ok(false)
+        Ok(Prior::Bytes(bytes))
+    }
+}
+
+enum Prior {
+    Null,
+    Bytes(Vec<u8>),
+}
+
+impl Prior {
+    fn is_null(&self) -> bool {
+        matches!(self, Self::Null)
     }
 }
 
@@ -208,6 +276,22 @@ mod tests {
         for (body, expect) in cases {
             assert_eq!(label(check_genesis_predecessor(body)), expect);
         }
+    }
+
+    #[test]
+    fn parent_ids_match_the_same_fixtures() {
+        assert_eq!(read_commit_parent(GENESIS_NULL), Ok(None));
+        assert_eq!(read_commit_generation(GENESIS_NULL), Ok(0));
+        assert_eq!(read_commit_parent(LATER_WITH_PRIOR), Ok(Some([0x91; 32])));
+        assert_eq!(read_commit_generation(LATER_WITH_PRIOR), Ok(1));
+        assert_eq!(
+            read_commit_parent(GENESIS_WITH_PRIOR),
+            Err(CommitCheckError::PredecessorNotEmpty)
+        );
+        assert_eq!(
+            read_commit_parent(NONMINIMAL_ZERO),
+            Err(CommitCheckError::Unreadable)
+        );
     }
 
     #[test]

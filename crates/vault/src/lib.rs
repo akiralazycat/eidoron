@@ -1,5 +1,12 @@
 #![forbid(unsafe_code)]
-//! Vault scaffold. Creation, unlock, import, and sync stay unavailable.
+//! Sync-folder vault sessions.
+//!
+//! [`create_vault`](crate::create_vault) and [`open_vault`](crate::open_vault)
+//! write and read one local directory. [`Session::status`](crate::Session::status)
+//! reports one head, every conflicting head, a missing parent, or a locked
+//! session. [`PrototypeVault::import_encrypted`] stays unavailable.
+//! `eidoron_crypto::status` is a separate scaffold flag and stays
+//! `NotImplemented`.
 //! [`check_genesis_predecessor`](crate::check_genesis_predecessor) applies one rule
 //! to an already decrypted commit body.
 //! [`check_directory_name`](crate::check_directory_name) stores names in NFC.
@@ -10,18 +17,38 @@ mod chunk_identity;
 mod commit_check;
 mod commit_history;
 mod directory_name;
+mod session;
 
 pub use chunk_identity::{ChunkIdentityError, check_chunk_identity};
 pub use commit_check::{CommitCheckError, GenesisPredecessor, check_genesis_predecessor};
 pub use commit_history::{HistoryError, HistoryStatus, HistoryView, LocalCommit, classify_heads};
 pub use directory_name::{DirectoryNameError, MAX_DIRECTORY_NAME_BYTES, check_directory_name};
+pub use session::{Session, VaultStatus, create_vault, open_vault};
 
 use eidoron_provider_local::MemoryStore;
 
+/// Why a vault operation failed. Display text does not include a password,
+/// a key, or header bytes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VaultError {
     NotImplemented,
+    Unavailable,
+    DirectoryNotEmpty,
+    Locked,
 }
+
+impl std::fmt::Display for VaultError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::NotImplemented => "not implemented",
+            Self::Unavailable => "unavailable",
+            Self::DirectoryNotEmpty => "directory not empty",
+            Self::Locked => "locked",
+        })
+    }
+}
+
+impl std::error::Error for VaultError {}
 
 #[derive(Debug, Default)]
 pub struct PrototypeVault {
@@ -56,7 +83,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn no_usable_vault_operations_in_p2_1() {
+    fn prototype_import_stays_unavailable() {
         let mut vault = PrototypeVault::new_synthetic_only();
         assert_eq!(
             vault.import_encrypted(b"synthetic"),

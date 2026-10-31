@@ -17,6 +17,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use crate::{PutOutcome, StoreError, immutable_put_decision};
 
 const TEMP_PREFIX: &str = ".eidoron-tmp-";
+pub const VAULT_HEADER_NAME: &str = "vault.header";
 
 /// What one directory entry is. Only [`FolderEntry::Object`] is an object id.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -47,8 +48,36 @@ impl TempDirStore {
         Ok(Self { root })
     }
 
+    /// Use an existing directory and leave `.eidoron-tmp-` files in place.
+    /// Startup cleanup is [`TempDirStore::create`], not a later status read.
+    pub fn open(root: impl Into<PathBuf>) -> Result<Self, StoreError> {
+        let root = root.into();
+        if !root.is_dir() {
+            return Err(StoreError::Io);
+        }
+        Ok(Self { root })
+    }
+
     pub fn root(&self) -> &Path {
         &self.root
+    }
+
+    /// Write `vault.header` with the same temp, `sync_all`, and rename path.
+    /// The name is fixed, so a caller cannot choose a path outside the folder.
+    pub fn write_vault_header(&self, bytes: &[u8]) -> Result<(), StoreError> {
+        let path = self.root.join(VAULT_HEADER_NAME);
+        if path.exists() {
+            return Err(StoreError::ExistingObjectDiffers);
+        }
+        write_via_temp(&self.root, &path, &[0u8; 32], bytes)
+    }
+
+    pub fn read_vault_header(&self) -> Result<Option<Vec<u8>>, StoreError> {
+        match fs::read(self.root.join(VAULT_HEADER_NAME)) {
+            Ok(bytes) => Ok(Some(bytes)),
+            Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
+            Err(_) => Err(StoreError::Io),
+        }
     }
 
     /// Store opaque bytes. An identical retry returns [`PutOutcome::IdenticalRetry`]
@@ -366,6 +395,12 @@ mod tests {
         let scan = store.scan().expect("scan");
         assert_eq!(
             scan,
+            vec![FolderEntry::LeftoverTemp(".eidoron-tmp-later".to_string())]
+        );
+        let reopened = TempDirStore::open(store.root()).expect("open");
+        assert!(planted.exists());
+        assert_eq!(
+            reopened.scan().expect("scan after open"),
             vec![FolderEntry::LeftoverTemp(".eidoron-tmp-later".to_string())]
         );
     }
