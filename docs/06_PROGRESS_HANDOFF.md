@@ -4,8 +4,9 @@
 - Last updated: **2026-10-31 JST**
 - Current baseline: **P0 Foundation / completed**
 - Implementation status: **no code written**
-- Working branch for this milestone: `docs/foundation-master-plan-20261031`
-- Merge status: pending at document authoring time; Git/PR is the final source of truth.
+- Foundation branch: `docs/foundation-master-plan-20261031` (merged)
+- Foundation PR: https://github.com/akiralazycat/eidoron/pull/1 — merged into main on 2026-10-31 JST
+- Foundation merge commit: `7835fd40e5608f5525db9dcb625b30ddff395e7e`
 
 ## Current phase board
 
@@ -64,4 +65,5 @@
 - Verified the newly initialized public repository and its MIT license.
 - Created initial architectural, security, UX, research, roadmap and handoff documentation.
 - No executable cryptographic code, cloud infrastructure, secret credentials or automated tests introduced.
+- PR #1 was reviewed for scope and merged to main (squash); 10 documentation/README files changed.
 - Next: P1.1 Security Target; see above.
