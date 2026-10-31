@@ -17,6 +17,8 @@
 - P1.4 merge commit: `db7613737073231c812fed22b18559eedabd3534`
 - P1.5 internal security-review PR: https://github.com/akiralazycat/eidoron/pull/6 — merged on 2026-10-31 JST
 - P1.5 merge commit: `bc125274e84535574301adb04919a9851a1f1387`
+- P2.1 scaffold PR: https://github.com/akiralazycat/eidoron/pull/7 — merged 2026-10-31 JST, **build not verified**
+- P2.1 merge commit: `88eca61d21b36008e72ebcbc56e63bf52e5531b9`
 
 ## Current phase board
 
@@ -86,7 +88,7 @@
 - `eidoron-crypto` and vault import **return NotImplemented**. `MemoryStore` only persists in process RAM and rejects conflicting overwrite of an opaque ID.
 - Added `docs/12_P2_IMPLEMENTATION.md` with module boundaries, verification commands, nonclaims and next owner task.
 - Only **static source/tree-level** checks are feasible. **No cargo/rustc tests executed; hand-composed Cargo.lock needs regeneration**.
-- Branch: `feat/p2-1-rust-workspace-20261031`; PR/merge status to be updated when verified.
+- Branch: `feat/p2-1-rust-workspace-20261031`; PR #7 merged to main (squash) despite build verification pending; P2.1-V remains blocked until Rust toolchain available.
 
 ## Session log — 2026-10-31 P1.1
 
