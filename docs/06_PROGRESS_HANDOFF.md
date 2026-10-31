@@ -2,8 +2,8 @@
 
 - Created: **2026-10-31 JST**
 - Last updated: **2026-10-31 JST**
-- Current baseline: **sync-folder create/open; forks kept; temp files are not objects**
-- Implementation status: **53 unit tests pass; NO CLOUD API, NO CREDENTIALS; crash claim limited to tested temp cleanup**
+- Current baseline: **selected-head directory and one small file; forks kept**
+- Implementation status: **56 unit tests pass; NO CLOUD API, NO CREDENTIALS; crash claim limited to tested temp cleanup**
 - Foundation branch: `docs/foundation-master-plan-20261031` (merged)
 - Foundation PR: https://github.com/akiralazycat/eidoron/pull/1 — merged into main on 2026-10-31 JST
 - Foundation merge commit: `7835fd40e5608f5525db9dcb625b30ddff395e7e`
@@ -39,7 +39,7 @@
 | P1.5 | Internal security design review and scope | DONE (docs only) | 2026-10-31; `docs/11_SECURITY_DESIGN_REVIEW.md`, ADR-0004. Not an external audit; release gate BLOCKED |
 | P2.1 | Synthetic local-only Rust workspace | DONE (scaffold verified, no crypto) | rustc 1.99.1 fmt/test/clippy recorded in `docs/12_P2_IMPLEMENTATION.md` |
 | P2.1-V | Verify lockfile, fmt, test, clippy on actual Rust | DONE | 2026-10-31: rustc 1.99.1 (`58cf8f9c3`, 2026-10-13). fmt check, 10 unit tests, clippy `-D warnings`, Cargo-generated path-only lockfile. Next tasks in `docs/PLAN.md` |
-| P2.2 | Known-answer crypto vectors and suite evaluation | PARTIAL | Through sync-folder create/open on 2026-10-31. Live R2/S3, remote rewrap, biometrics, and Shadow passwords stay out of v1. See `docs/PLAN.md` |
+| P2.2 | Known-answer crypto vectors and suite evaluation | PARTIAL | Through a selected-head directory and one small file on 2026-10-31. Live R2/S3, remote rewrap, biometrics, and Shadow passwords stay out of v1. See `docs/PLAN.md` |
 | P2 | Rust Vault implementation | NOT STARTED | Do not claim ready |
 | P3 | Safe cloud sync | NOT STARTED | Do not claim ready |
 | P4/P5 | iOS / Android native clients | NOT STARTED | Do not claim ready |
@@ -86,14 +86,27 @@
 | 2026-10-31 | content-id | HMAC-SHA256 under an HKDF key | info `eidoron/v0/content-id \|\| vault_id`. Not SHA-256(plaintext). Do not publish the id in the clear. Oracle: `scripts/content_id_kat.py` |
 | 2026-10-31 | #17 adopted | Show both heads, no auto-merge, no auto-delete of conflict copies | No crash claim beyond tested temp cleanup. Remote rewrap, biometrics, and Shadow password are out of v1. S3 is low priority |
 | 2026-10-31 | vault session | Create and open a sync-folder vault | `Session::status` is Ok / Conflict / Incomplete / Locked. `eidoron_crypto::status()` stays NotImplemented. Wrong password is `Unavailable`. No new fixed ciphertext vector |
+| 2026-10-31 | #18 adopted | Select a head before append; do not skip a failed open; no timing claim | Wrong-head append is `WrongHead`. A hex file that does not decrypt fails `status`. Equal running time is not claimed |
+| 2026-10-31 | directory under one head | NFC directory plus one chunk file | `list_directory` reads only the selected head. Oracle: `scripts/directory_kat.py`. No two-head content view |
 
-## Immediate next task — directory under one head
+## Immediate next task — real empty subdirectory
 
 **Do not** create a Google Drive, Dropbox, R2, or S3 account for this repository, and do not add a vendor SDK.
-- The product writes a local folder. `create_vault` / `open_vault` / `Session::status` exist. Fork detection is `classify_heads`. Sync-tool conflict copies are not read as objects and are not deleted.
-- A UI must not call `write_commit` during a conflict until the user picks a parent. The library does not pick one.
-- Still out of v1: remote rewrap, biometrics, a Shadow password, and any crash claim beyond the tested temp-file cleanup.
+- Append only after `select_head`, and only under that head. `list_directory` reads that head alone.
+- A hex object that fails to decrypt fails `status`. Do not skip it. Do not claim that password failure and header failure take the same time.
+- `append_directory` records child ids and does not create those objects. `write_file` creates one chunk.
+- Still out of v1: remote rewrap, biometrics, a Shadow password, a two-head content view, and any crash claim beyond the tested temp-file cleanup.
 - Explicit scope restrictions: no credentials in git, no real user data, no Shadow/Specter claim.
+
+## Session log — 2026-10-31 directory under a selected head
+
+- Started from main at `f9fc2b0` (PR #18 merged).
+- Adopted the #18 recommendations: append only after the user picks a head, no auto-merge, a failed commit open stays `Unavailable`, and timing equality is not claimed.
+- `append_directory` writes a kind `0x02` object and a child commit under the selected head. Names go through `check_directory_name`. An NFC/NFD pair is `DuplicateName` and writes nothing. `list_directory` lists that head only.
+- `write_file` keeps the earlier names, adds one file descriptor and one chunk, and calls `check_chunk_identity` before the write and on read. Reopen plus select reads the same bytes.
+- A second device's head is copied into the folder, then an append under the other head is `WrongHead` and does not change existing files. Conflict-copy names stay byte-identical across open.
+- Plaintext fixtures are from `scripts/directory_kat.py`. No new ciphertext vector.
+- `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (56 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0 on rustc 1.99.1.
 
 ## Session log — 2026-10-31 vault create and open
 

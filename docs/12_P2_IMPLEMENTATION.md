@@ -2,7 +2,7 @@
 
 - Created / updated: **2026-10-31 JST**
 - Milestone: **P2.1 — synthetic local-only Rust workspace**
-- Status: **sync-folder create/open on rustc 1.99.1 (2026-10-31); not a production vault**
+- Status: **selected-head directory and one small file on rustc 1.99.1 (2026-10-31); not a production vault**
 - Governing decisions: [P1.5 review](11_SECURITY_DESIGN_REVIEW.md), [ADR-0004](decisions/0004-security-review-scope-and-safety.md)
 - Previous plans: [Roadmap](05_IMPLEMENTATION_ROADMAP.md) and [P1.4 test plan](10_TEST_AND_FUZZ_PLAN.md)
 
@@ -17,7 +17,7 @@ Set up a reproducible local-only Rust workspace with **untrusted public format s
 | `eidoron-crypto` | Cryptographic boundary | Primitive KATs; key schedule; object AEAD under ObjectKey. `status()` is still NotImplemented | Import, a production-ready flag |
 | `eidoron-format` | Public byte parsing | Fixed lengths, magic/version/suite/resource checks, only `Untrusted*` types | AEAD verification, CBOR schemas, full graph integrity |
 | `eidoron-provider-local` | Synthetic local object storage | Memory HashMap and a caller-chosen directory of lowercase-hex files. Identical opaque bytes retry; different bytes are rejected. `create` removes leftover temp names; `open` does not. Crash safety is not claimed | Durable crash recovery, cloud provider, CAS, multi-device |
-| `eidoron-vault` | Session/vault integration | `create_vault`, `open_vault`, `Session::status` (`Ok`, `Conflict`, `Incomplete`, `Locked`), lock on drop | Import, directory and file objects, export, recovery |
+| `eidoron-vault` | Session/vault integration | `create_vault`, `open_vault`, `Session::status`, `select_head`, directory list, one small file under that head, lock on drop | Import, multi-chunk files, export, recovery |
 | `eidoron-test-vectors` | Synthetic deterministic test harness | Shape checks, key-schedule constants, and one object-AEAD ciphertext from `scripts/object_aead_kat.py` | Commit-graph fixtures |
 
 P2.1 had no external crates. P2.2 M1 added the five pinned RustCrypto crates listed in the checkpoint below; UniFFI is still absent. The P2.1 lockfile was path-only. The current `Cargo.lock` was regenerated with `cargo generate-lockfile` after those dependencies were added.
@@ -167,9 +167,17 @@ No new Python vector was added. Commit object ids and nonces are OS random. Pare
 
 On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (53 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0.
 
+## Selected-head directory checkpoint (2026-10-31)
+
+`select_head` is required before `append_directory` or `write_file`. A missing selection is `HeadNotSelected`. A different head is `WrongHead`. The other head's files stay byte-for-byte. Directory names are NFC. An NFC/NFD pair is `DuplicateName` and writes nothing. `list_directory` lists only the selected head. `write_file` stores one chunk and checks `file_id` and ordinal with `check_chunk_identity` on write and on read. A hex file that does not decrypt fails `status` and is not skipped. Decrypted non-commits are omitted from the history.
+
+Plaintext directory, file-descriptor, and chunk bytes are the output of `crates/test-vectors/scripts/directory_kat.py`. No ciphertext fixture was added.
+
+On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (56 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0.
+
 ## Next bounded work unit
 
-A directory object under one chosen head. Do not add a cloud account or SDK. Remote rewrap, biometrics, and a Shadow password stay out of v1. Further crash claims need a fault-injection test that does not exist yet.
+An empty subdirectory stored as its own object under the selected head. Do not add a two-head content view, a cloud account, or an SDK. Remote rewrap, biometrics, and a Shadow password stay out of v1. Further crash claims need a fault-injection test that does not exist yet.
 
 ## Security / release state
 

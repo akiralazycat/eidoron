@@ -12,6 +12,8 @@ The synthetic key schedule lives in `src/key_schedule.rs`. Its expected bytes we
 
 The object AEAD vector lives in `src/object_aead.rs`. Its ciphertext was printed by `scripts/object_aead_kat.py` using PyNaCl 1.6.2 and the M2 `OBJECT_KEY` bytes. Plaintext is kind `0x04`, schema `0x00`, and the ASCII payload `synthetic`. The nonce is 24 bytes of `0x66`. Re-run the script to check the constant. Do not replace it with output from the Rust tests.
 
-`encrypt_authenticated` seals an object body. `status()` is still `NotImplemented` because there is no vault session.
+`encrypt_authenticated` seals an object body. `eidoron_crypto::status()` is still `NotImplemented`. Vault session status is a different type.
 
 Genesis commit bodies in `src/commit_genesis.rs` were printed by `scripts/genesis_commit_kat.py` using RFC 8949 preferred lengths. The labels say what the single generation-0 predecessor rule should do. They were not produced by the Rust checker. A storage idempotency hash, if one is added later, must be keyed or stored encrypted. A plain hash of plaintext is not a storage key.
+
+Directory, file-descriptor, and chunk plaintexts in `src/directory_object.rs` were printed by `scripts/directory_kat.py` with the same preferred-length rules. They are not ciphertexts. Re-run the script to check the constants. Do not replace them with output from the Rust tests.

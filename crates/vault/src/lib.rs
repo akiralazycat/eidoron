@@ -11,17 +11,21 @@
 //! to an already decrypted commit body.
 //! [`check_directory_name`](crate::check_directory_name) stores names in NFC.
 //! [`check_chunk_identity`](crate::check_chunk_identity) compares one chunk's
-//! `file_id` and ordinal with the caller.
+//! `file_id` and ordinal with the caller. Appends go under a selected head.
 
 mod chunk_identity;
 mod commit_check;
 mod commit_history;
+mod directory_body;
 mod directory_name;
+mod file_body;
+mod narrow_cbor;
 mod session;
 
 pub use chunk_identity::{ChunkIdentityError, check_chunk_identity};
 pub use commit_check::{CommitCheckError, GenesisPredecessor, check_genesis_predecessor};
 pub use commit_history::{HistoryError, HistoryStatus, HistoryView, LocalCommit, classify_heads};
+pub use directory_body::{ChildKind, DirectoryEntry};
 pub use directory_name::{DirectoryNameError, MAX_DIRECTORY_NAME_BYTES, check_directory_name};
 pub use session::{Session, VaultStatus, create_vault, open_vault};
 
@@ -35,6 +39,12 @@ pub enum VaultError {
     Unavailable,
     DirectoryNotEmpty,
     Locked,
+    /// Append was asked for before [`Session::select_head`](crate::Session::select_head).
+    HeadNotSelected,
+    /// The id is not the selected head, or it is not a current head.
+    WrongHead,
+    RejectedName,
+    DuplicateName,
 }
 
 impl std::fmt::Display for VaultError {
@@ -44,6 +54,10 @@ impl std::fmt::Display for VaultError {
             Self::Unavailable => "unavailable",
             Self::DirectoryNotEmpty => "directory not empty",
             Self::Locked => "locked",
+            Self::HeadNotSelected => "head not selected",
+            Self::WrongHead => "wrong head",
+            Self::RejectedName => "rejected name",
+            Self::DuplicateName => "duplicate name",
         })
     }
 }
