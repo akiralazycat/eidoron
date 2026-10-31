@@ -125,9 +125,15 @@ On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked 
 
 On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (25 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0.
 
+## M5.21 checkpoint (2026-10-31)
+
+`check_directory_name` rejects an empty name, a name longer than 255 UTF-8 bytes, a name containing `/` or U+0000, and the whole names `.` and `..`. It does not check NFC. `file.txt` and `.hidden` are accepted.
+
+On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (28 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0.
+
 ## Next bounded work unit
 
-Next is **M5.21** in [PLAN.md](PLAN.md): reject empty directory names and the names `/`, `.`, `..`, and names containing NUL. No CBOR decoder and no NFC check in that change. Real files stay out of the tree.
+Next is **M5.22** in [PLAN.md](PLAN.md): reject a chunk whose `file_id` or ordinal differs from the caller's expectation. No store walk. Real files stay out of the tree.
 
 ## Security / release state
 

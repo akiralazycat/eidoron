@@ -128,6 +128,7 @@ The following maps are *complete* v0 proposals (integer keys appear in ascending
 
 - Each entry is exactly `[name:text, child_kind:uint, child_object_id:bstr(32)]`; `child_kind=2` (directory) or `3` (file).
 - Names MUST be Unicode NFC, 1..255 UTF-8 bytes, forbid U+0000, slash, `.` and `..`; MUST be unique within a directory by identical UTF-8 bytes. No locale-dependent case folding in v0.
+- **Implementation limit (2026-10-31, M5.21):** `check_directory_name` rejects an empty name, a name longer than 255 UTF-8 bytes, a name containing `/` or U+0000, and the whole names `.` and `..`. It does not trim, and it does not check NFC. `file.txt`, `.hidden`, and `...` are accepted. Uniqueness, sort order, and depth are not checked.
 - Entries MUST be sorted by unsigned lexicographic order of the **UTF-8 name bytes**; max 4096 entries. Root directory has `parent_dir_id=null`; nonroot has an authenticated parent logical ID matching the referring directory.
 - The same directory logical ID referenced from two different logical parents or a directory cycle is invalid. Directory depth ≤ 64.
 
