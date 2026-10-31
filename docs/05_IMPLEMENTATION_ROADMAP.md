@@ -35,7 +35,7 @@ Exit for synthetic P2 prototype: review must define a narrow local-only boundary
 - P2.2: **PARTIAL (2026-10-31)** — pinned RustCrypto crates, primitive vectors, key schedule, object AEAD, the genesis predecessor check, directory-name rejection (no NFC; coexistence of NFC/NFD names is an open question), and chunk `file_id`/ordinal checks. No general CBOR decoder. `status()` is still `NotImplemented`. See [PLAN.md](PLAN.md).
 - P2.3: stream/chunk AEAD implementation, length limits, strict error model and zeroization attempts.
 - P2.4: encrypted tree/index with object↔parent↔generation authenticated bindings.
-- P2.5: **PARTIAL (2026-10-31)** — `TempDirStore` writes opaque objects as lowercase hex files and rejects a different payload at the same id. Atomic persistence, crash recovery, safe imports, and verified exports are not implemented and not claimed.
+- P2.5: **PARTIAL (2026-10-31)** — `TempDirStore` writes opaque objects as lowercase hex files. Directory names normalize to NFC. A keyed HMAC content id exists and is not published in the clear. Conditional HEAD is an in-memory trait only. Atomic persistence, crash recovery, a live S3/R2 client, safe imports, and verified exports are not implemented and not claimed.
 - P2.6: property/fuzz/mutation tests, recovery and benchmarking.
 Exit: cannot return unauthenticated plaintext; corruption detectable; recovery tested with no cloud.
 

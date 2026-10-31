@@ -2,8 +2,8 @@
 
 - Created: **2026-10-31 JST**
 - Last updated: **2026-10-31 JST**
-- Current baseline: **M6.23 temporary directory store passes; crash safety is not claimed**
-- Implementation status: **opaque hex files; 36 unit tests pass; NO CLOUD, NO CRASH-SAFETY CLAIM**
+- Current baseline: **NFC names, keyed content ids, and an in-memory conditional HEAD; no live cloud**
+- Implementation status: **39 unit tests pass; NO NETWORK CLIENT, NO CREDENTIALS, NO CRASH-SAFETY CLAIM**
 - Foundation branch: `docs/foundation-master-plan-20261031` (merged)
 - Foundation PR: https://github.com/akiralazycat/eidoron/pull/1 — merged into main on 2026-10-31 JST
 - Foundation merge commit: `7835fd40e5608f5525db9dcb625b30ddff395e7e`
@@ -39,7 +39,7 @@
 | P1.5 | Internal security design review and scope | DONE (docs only) | 2026-10-31; `docs/11_SECURITY_DESIGN_REVIEW.md`, ADR-0004. Not an external audit; release gate BLOCKED |
 | P2.1 | Synthetic local-only Rust workspace | DONE (scaffold verified, no crypto) | rustc 1.99.1 fmt/test/clippy recorded in `docs/12_P2_IMPLEMENTATION.md` |
 | P2.1-V | Verify lockfile, fmt, test, clippy on actual Rust | DONE | 2026-10-31: rustc 1.99.1 (`58cf8f9c3`, 2026-10-13). fmt check, 10 unit tests, clippy `-D warnings`, Cargo-generated path-only lockfile. Next tasks in `docs/PLAN.md` |
-| P2.2 | Known-answer crypto vectors and suite evaluation | PARTIAL | M1–M5 and M6.23 done 2026-10-31. M6.24 cloud and later stay deferred. See `docs/PLAN.md` |
+| P2.2 | Known-answer crypto vectors and suite evaluation | PARTIAL | Through M6.24 design/fake on 2026-10-31. Live R2/S3, remote rewrap, biometrics, and Shadow passwords stay out. See `docs/PLAN.md` |
 | P2 | Rust Vault implementation | NOT STARTED | Do not claim ready |
 | P3 | Safe cloud sync | NOT STARTED | Do not claim ready |
 | P4/P5 | iOS / Android native clients | NOT STARTED | Do not claim ready |
@@ -80,13 +80,24 @@
 | 2026-10-31 | M5.21 | Directory name rejection without NFC | Empty, longer than 255 UTF-8 bytes, `/`, U+0000, and the whole names `.` and `..`. `file.txt` and non-NFC text are accepted. NFC/NFD coexistence is an open question in `docs/PLAN.md` |
 | 2026-10-31 | M5.22 | Chunk file_id and ordinal check | One decrypted chunk compared with the caller. No store scan. Either mismatch is `Mismatch`. Payload bytes are ignored |
 | 2026-10-31 | M6.23 | Temporary directory of opaque objects | Lowercase hex file names. Identical opaque bytes retry. Different bytes rejected. Not a plaintext hash. Crash safety not tested |
-| 2026-10-31 | M6.24 | Cloud, HEAD CAS, remote rewrap, biometrics, Shadow password | Deferred until a provider is chosen and its conditional writes are recorded |
+| 2026-10-31 | M6.24 | S3-compatible conditional HEAD, design and fake only | Owner chose R2 or AWS S3 as the family to measure. `ConditionalHead` plus `MemoryHead`. No network and no credentials. Experiment list in `docs/13_S3_CONDITIONAL_HEAD.md` |
+| 2026-10-31 | NFC | Store directory names as NFC | `unicode-normalization` 0.1.26. NFC and NFD é are one stored name |
+| 2026-10-31 | content-id | HMAC-SHA256 under an HKDF key | info `eidoron/v0/content-id \|\| vault_id`. Not SHA-256(plaintext). Do not publish the id in the clear. Oracle: `scripts/content_id_kat.py` |
 
-## Immediate next task — blocked on owner choices
+## Immediate next task — record provider experiments
 
-**Do not start** cloud sync, conditional HEAD publication, remote password rewrap, biometrics, or a second Shadow password. Those need a chosen provider and a record of its conditional writes (PLAN item 24, ADR-0004).
-- Open questions: whether NFC and NFD directory names may coexist, and which keyed hash (HMAC-SHA256, keyed BLAKE, or HKDF) storage idempotency will use.
-- Explicit scope restrictions: no cloud, real user data, native secrets, Shadow/Specter, production security claims; no mandatory GitHub Actions or user's PC.
+**Goal:** fill in the eight records in `docs/13_S3_CONDITIONAL_HEAD.md` for either Cloudflare R2 or AWS S3, using credentials that stay outside this repository. Do not add an SDK until those records exist.
+- Still deferred: remote password rewrap, biometrics, a second Shadow password, crash-safe directory writes.
+- Explicit scope restrictions: no cloud credentials in git, no real user data, no Shadow/Specter claim; no mandatory GitHub Actions or user's PC.
+
+## Session log — 2026-10-31 owner decisions: NFC, content id, conditional HEAD
+
+- Started from main at `3860cfd` (PR #15 merged).
+- `check_directory_name` normalizes with `unicode-normalization` 0.1.26 before the existing rejections. NFC `é` and NFD `e` + U+0301 return the same stored string. Length is measured after normalization.
+- `derive_content_id_key` / `content_id` use HKDF-SHA256 and HMAC-SHA256. Info is `eidoron/v0/content-id || vault_id`. The known-answer bytes are from `scripts/content_id_kat.py` and are not SHA-256 of the plaintext. The id is not written into `TempDirStore`.
+- `ConditionalHead` and `MemoryHead` implement `If-None-Match: *` and `If-Match`. The fake etag is a counter. No socket is opened.
+- Remote rewrap, biometrics, and a Shadow password were not started.
+- `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (39 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0 on rustc 1.99.1.
 
 ## Session log — 2026-10-31 M6.23 temporary directory
 

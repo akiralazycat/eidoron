@@ -2,8 +2,7 @@
 //! Vault scaffold. Creation, unlock, import, and sync stay unavailable.
 //! [`check_genesis_predecessor`](crate::check_genesis_predecessor) applies one rule
 //! to an already decrypted commit body.
-//! [`check_directory_name`](crate::check_directory_name) rejects a few names and
-//! does not normalize Unicode.
+//! [`check_directory_name`](crate::check_directory_name) stores names in NFC.
 //! [`check_chunk_identity`](crate::check_chunk_identity) compares one chunk's
 //! `file_id` and ordinal with the caller.
 

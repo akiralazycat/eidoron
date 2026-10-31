@@ -13,7 +13,7 @@ Interfaces:
 - LocalCache: encryption at rest, explicit eviction and provenance.
 - ProviderCapability: whether versioning/ETag/atomic rename/listing/locking is available.
 
-Begin with local-folder provider for fault injection, then choose one cloud adapter based on measured APIs. Evaluate S3-compatible and WebDAV. For iCloud Drive/Google Drive/Dropbox, account for Apple File Provider constraints, OAuth permission scopes, quotas and API/platform capabilities; do not promise uniform background sync.
+Begin with local-folder provider for fault injection, then one S3-compatible adapter (Cloudflare R2 or AWS S3) after the conditional-write records in [13_S3_CONDITIONAL_HEAD.md](13_S3_CONDITIONAL_HEAD.md). WebDAV and consumer-drive providers stay later. Do not promise uniform background sync.
 
 ## 2. Sync protocol invariants
 

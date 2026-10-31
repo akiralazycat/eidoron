@@ -3,6 +3,7 @@
 //! [`key_schedule`] holds the M2 expected key bytes from an independent script.
 
 pub mod commit_genesis;
+pub mod content_id;
 pub mod key_schedule;
 pub mod object_aead;
 
