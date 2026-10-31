@@ -7,6 +7,8 @@
 - Foundation branch: `docs/foundation-master-plan-20261031` (merged)
 - Foundation PR: https://github.com/akiralazycat/eidoron/pull/1 — merged into main on 2026-10-31 JST
 - Foundation merge commit: `7835fd40e5608f5525db9dcb625b30ddff395e7e`
+- P1.1 security-target PR: https://github.com/akiralazycat/eidoron/pull/2 — merged on 2026-10-31 JST
+- P1.1 merge commit: `7a4a7d7fb9668d8d9fb6d98b2fc8d36e09aff374`
 
 ## Current phase board
 
@@ -54,7 +56,7 @@
 - Added `docs/08_SECURITY_TARGET.md` covering T0–T6, C01–C08, W0/W1 observable games, SEC/DEN tests, failure semantics, release claim gates.
 - Updated README, master plan, threat model and roadmap cross-references.
 - **No executable tests, encrypted storage engine or security audit performed.**
-- Branch: `docs/p1-1-security-target-20261031`; verify merge state via GitHub PR history.
+- Branch: `docs/p1-1-security-target-20261031`; PR #2 merged to main (squash), 2026-10-31 JST.
 - Next: P1.2 ADR-0002; do not mistake test contracts for passing tests.
 
 ## Handoff recipe (another AI, mobile or desktop)
