@@ -13,6 +13,8 @@
 - P1.2 merge commit: `7dd3ba458838b50df24b9d3b9623ab8350e9cb0d`
 - P1.3 envelope-format PR: https://github.com/akiralazycat/eidoron/pull/4 — merged on 2026-10-31 JST
 - P1.3 merge commit: `fc1aad284349b25bde58888fcbe317b437b4a094`
+- P1.4 test/fuzz-plan PR: https://github.com/akiralazycat/eidoron/pull/5 — merged on 2026-10-31 JST
+- P1.4 merge commit: `db7613737073231c812fed22b18559eedabd3534`
 
 ## Current phase board
 
@@ -98,7 +100,7 @@
 - Read current `docs/09_ENVELOPE_FORMAT_V0.md` and ADR-0003, authored P1.4 **documentation-only** `docs/10_TEST_AND_FUZZ_PLAN.md`.
 - Enumerated exact positive/negative byte vectors, property/fuzz tests, malicious-provider failure state model, SEC and CLAIM coverage, and 10 pending P1.5 blockers.
 - No crates installed, files encrypted, actual vectors created, test suites executed or security guarantees verified.
-- Branch: `docs/p1-4-test-fuzz-plan-20261031`; verify merge state in GitHub history.
+- Branch: `docs/p1-4-test-fuzz-plan-20261031`; PR #5 merged to main (squash), 2026-10-31 JST.
 - Next: P1.5 security design review, decide BLK-01..10, keep progress updated.
 
 ## Handoff recipe (another AI, mobile or desktop)
