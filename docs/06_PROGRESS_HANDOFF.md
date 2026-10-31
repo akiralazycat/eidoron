@@ -15,6 +15,8 @@
 - P1.3 merge commit: `fc1aad284349b25bde58888fcbe317b437b4a094`
 - P1.4 test/fuzz-plan PR: https://github.com/akiralazycat/eidoron/pull/5 — merged on 2026-10-31 JST
 - P1.4 merge commit: `db7613737073231c812fed22b18559eedabd3534`
+- P1.5 internal security-review PR: https://github.com/akiralazycat/eidoron/pull/6 — merged on 2026-10-31 JST
+- P1.5 merge commit: `bc125274e84535574301adb04919a9851a1f1387`
 
 ## Current phase board
 
@@ -77,7 +79,7 @@
 - Created `docs/11_SECURITY_DESIGN_REVIEW.md` and `docs/decisions/0004-security-review-scope-and-safety.md` documenting internal dispositions BLK-01..10 and FIND-11..15.
 - Amended candidate v0 specification and P1.4 references; no silent rewrite of ADR-0003.
 - **Internal documentation review only**: no independent auditor, crypto test, source implementation, actual cloud/device validation or approved release.
-- Branch: `docs/p1-5-security-design-review-20261031`; confirm merge and commit evidence in Git history.
+- Branch: `docs/p1-5-security-design-review-20261031`; PR #6 merged to main (squash) 2026-10-31 JST.
 - Next: P2.1 experimental offline/local Rust workspace.
 
 ## Session log — 2026-10-31 P1.1
