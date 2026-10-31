@@ -14,17 +14,17 @@ Set up a reproducible local-only Rust workspace with **untrusted public format s
 
 | Crate | Responsibility | Implemented P2.1 | NOT implemented |
 |---|---|---|---|
-| `eidoron-crypto` | Cryptographic boundary | Explicit fail-closed error; no plaintext falsely returned | Argon2id, HKDF, XChaCha20, auth, key lifecycle |
+| `eidoron-crypto` | Cryptographic boundary | Fail-closed vault API; published Argon2id, HKDF-SHA-256 and XChaCha20-Poly1305 known-answer tests against pinned RustCrypto crates | Vault key schedule, object AEAD, key lifecycle |
 | `eidoron-format` | Public byte parsing | Fixed lengths, magic/version/suite/resource checks, only `Untrusted*` types | AEAD verification, CBOR schemas, full graph integrity |
 | `eidoron-provider-local` | Synthetic local object storage | Memory-only HashMap, immutable create & identical retry | Durable filesystem, crashes, cloud provider, CAS, multi-device |
 | `eidoron-vault` | Session/vault integration | Explicitly unavailable operations | Real vault creation, import, unlock, export, recovery |
-| `eidoron-test-vectors` | Synthetic deterministic test harness | Deliberately unauthenticated byte shape fixtures | Genuine ciphertext, KAT, independent expected cryptographic bytes |
+| `eidoron-test-vectors` | Synthetic deterministic test harness | Unauthenticated byte shapes plus public rejection matrix (length, version, Argon2 bounds) | Protocol key-schedule fixtures |
 
-No external crates in P2.1: dependency choice for RustCrypto/UniFFI was recorded by ADR-0002 but is deferred to P2.2/3 until exact versions and security review. `Cargo.lock` contains **path-only local crates** and, as of the 2026-10-31 verification, is the file produced by `cargo generate-lockfile --offline` on Cargo 1.99.1. The earlier hand-written bootstrap comments were removed by regenerating from scratch; the package graph did not change.
+P2.1 had no external crates. P2.2 M1 added the five pinned RustCrypto crates listed in the checkpoint below; UniFFI is still absent. The P2.1 lockfile was path-only. The current `Cargo.lock` was regenerated with `cargo generate-lockfile` after those dependencies were added.
 
 ## Toolchain and executable checks
 
-- `rust-toolchain.toml` pins **1.99.1**; edition 2024; no external dependencies.
+- `rust-toolchain.toml` pins **1.99.1**; edition 2024. External crates are the pinned RustCrypto set in the P2.2 M1 checkpoint.
 - Repeatable checks:
   1. `cargo generate-lockfile --offline` (path-only graph; compare diff before committing)
   2. `cargo fmt --all -- --check`
@@ -75,9 +75,31 @@ The authoring container that landed P2.1 had no cargo/rustc, which is why this g
 - Return types are `UntrustedHeader`, `UntrustedHead` and `UntrustedObject`. There is no `VerifiedPlaintext` type in the tree.
 - HEAD lengths other than 66, and header mutations other than length and all-zero magic, are implemented in `inspect_untrusted_*` but were not separate assertions in this run. They are M3 in [PLAN.md](PLAN.md).
 
+## P2.2 M1 checkpoint (2026-10-31)
+
+Pinned in `[workspace.dependencies]` and depended on by `eidoron-crypto`:
+
+| Crate | Version |
+|---|---|
+| argon2 | 0.6.0 |
+| hkdf | 0.13.0 |
+| sha2 | 0.11.1 |
+| chacha20poly1305 | 0.11.0 |
+| zeroize | 1.9.1 |
+
+`Cargo.lock` also records transitive crates.io packages required by those five. UniFFI is not a dependency.
+
+Known-answer sources, transcribed into `crates/crypto/src/published_kat.rs` and noted in `crates/test-vectors/README.md`:
+
+- RFC 9106 section 5.3 Argon2id tag `0d640df58d78766c08c037a34a8b53c9d01ef0452d75b65eb52520e96b01e659`
+- RFC 5869 appendix A.1 PRK `077709362c2e32df0ddc3f0dc47bba6390b6c73bb50f9c3122ec844ad7c2b3e5` and 42-byte OKM
+- draft-irtf-cfrg-xchacha-03 appendix A.3.1 tag `c0875924c1c7987947deafd8780acf49`
+
+On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (17 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0. `encrypt_authenticated` still returns `NotImplemented`.
+
 ## Next bounded work unit
 
-P2.1 verification is recorded above. Next is **P2.2**, in the order written in [PLAN.md](PLAN.md): pin exact RustCrypto versions, then one published Argon2id known-answer test, then HKDF-SHA256 and XChaCha20-Poly1305. `encrypt_authenticated` stays `NotImplemented` until those three pass. Synthetic inputs only. Real files stay out of the tree.
+Next is **P2.2 M2** in [PLAN.md](PLAN.md): synthetic `RawPwdKey` / `WrapKey` / `ObjectKey`, with expected bytes from an independent calculation. `encrypt_authenticated` stays `NotImplemented`. Real files stay out of the tree.
 
 ## Security / release state
 
