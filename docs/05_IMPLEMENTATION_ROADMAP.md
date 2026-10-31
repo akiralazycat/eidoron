@@ -32,7 +32,7 @@ Exit for synthetic P2 prototype: review must define a narrow local-only boundary
 ## P2 — exact work packages
 
 - P2.1: **DONE as a verified synthetic scaffold (2026-10-31)** — five dependency-free Rust crates, pinned `rust-toolchain.toml` (1.99.1), Cargo-generated path-only `Cargo.lock`, untrusted public format inspector, memory-only store, fail-closed crypto/vault stubs. `cargo fmt --check`, `cargo test` (10 unit tests) and `cargo clippy -D warnings` executed on rustc 1.99.1. Cryptography is still absent. See [P2 implementation ledger](12_P2_IMPLEMENTATION.md) and [development plan](PLAN.md).
-- P2.2: **PARTIAL (2026-10-31)** — pinned RustCrypto crates, primitive vectors, key schedule, object AEAD, the genesis predecessor check, and directory-name rejection (`check_directory_name`, no NFC). No general CBOR decoder. `status()` is still `NotImplemented`. See [PLAN.md](PLAN.md).
+- P2.2: **PARTIAL (2026-10-31)** — pinned RustCrypto crates, primitive vectors, key schedule, object AEAD, the genesis predecessor check, directory-name rejection (no NFC; coexistence of NFC/NFD names is an open question), and chunk `file_id`/ordinal checks. No general CBOR decoder. `status()` is still `NotImplemented`. See [PLAN.md](PLAN.md).
 - P2.3: stream/chunk AEAD implementation, length limits, strict error model and zeroization attempts.
 - P2.4: encrypted tree/index with object↔parent↔generation authenticated bindings.
 - P2.5: local provider, atomic persistence, safe imports and verified exports.

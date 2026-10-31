@@ -131,9 +131,15 @@ On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked 
 
 On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (28 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0.
 
+## M5.22 checkpoint (2026-10-31)
+
+`check_chunk_identity` compares one decrypted chunk's 16-byte `file_id` and big-endian `ordinal` with the caller's expectation. Either mismatch is `Mismatch`. Payload bytes are ignored. No store is scanned.
+
+On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (32 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0.
+
 ## Next bounded work unit
 
-Next is **M5.22** in [PLAN.md](PLAN.md): reject a chunk whose `file_id` or ordinal differs from the caller's expectation. No store walk. Real files stay out of the tree.
+Next is **M6.23** in [PLAN.md](PLAN.md): write opaque 32-byte ids into a temporary directory, allow an identical retry, and reject a different payload. No crash-safety claim. Real files stay out of the tree.
 
 ## Security / release state
 

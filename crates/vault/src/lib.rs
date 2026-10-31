@@ -4,10 +4,14 @@
 //! to an already decrypted commit body.
 //! [`check_directory_name`](crate::check_directory_name) rejects a few names and
 //! does not normalize Unicode.
+//! [`check_chunk_identity`](crate::check_chunk_identity) compares one chunk's
+//! `file_id` and ordinal with the caller.
 
+mod chunk_identity;
 mod commit_check;
 mod directory_name;
 
+pub use chunk_identity::{ChunkIdentityError, check_chunk_identity};
 pub use commit_check::{CommitCheckError, GenesisPredecessor, check_genesis_predecessor};
 pub use directory_name::{DirectoryNameError, MAX_DIRECTORY_NAME_BYTES, check_directory_name};
 
