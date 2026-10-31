@@ -2,7 +2,7 @@
 
 - Created: **2026-10-31 JST**
 - Last updated: **2026-10-31 JST**
-- Current baseline: **P1 Security Protocol / P1.1 security target authored**
+- Current baseline: **P1 Security Protocol / P1.1–P1.2 documentation authored**
 - Implementation status: **no code written**
 - Foundation branch: `docs/foundation-master-plan-20261031` (merged)
 - Foundation PR: https://github.com/akiralazycat/eidoron/pull/1 — merged into main on 2026-10-31 JST
@@ -22,8 +22,8 @@
 | P0.6 | Native UX vision | DONE (planning only) | docs/04_PRODUCT_UX.md |
 | P0.7 | Roadmap and handoff process | DONE | docs/05_IMPLEMENTATION_ROADMAP.md + this file |
 | P1.1 | Formalize adversaries/claims into normative spec | DONE (docs only) | 2026-10-31; `docs/08_SECURITY_TARGET.md`; C01–C08, SEC-001–013, DEN-001–005; no tests executed |
-| P1.2 | Library/FFI/device secure storage ADR | TODO | **NEXT** — ADR-0002; must precede code |
-| P1.3 | Binary envelope v0 spec | TODO | Must precede code |
+| P1.2 | Library/FFI/device secure storage ADR | DONE (docs only) | 2026-10-31; ADR-0002 candidates and risks recorded; **no versions pinned, build or audit** |
+| P1.3 | Binary envelope v0 spec | TODO | **NEXT**; versioned format, key hierarchy, canonical AAD, nonce and test vectors |
 | P2 | Rust Vault implementation | NOT STARTED | Do not claim ready |
 | P3 | Safe cloud sync | NOT STARTED | Do not claim ready |
 | P4/P5 | iOS / Android native clients | NOT STARTED | Do not claim ready |
@@ -40,15 +40,18 @@
 | 2026-10-31 | OPEN-02 | First cloud adapter undecided | Evaluate provider constraints empirically |
 | 2026-10-31 | OPEN-03 | Safe hidden allocation without disclosure unresolved | Core P6 research blocker |
 | 2026-10-31 | OPEN-04 | Hidden-key onboarding/recovery/biometrics unresolved | May reveal hidden existence |
-| 2026-10-31 | P1.1 | Formal prospective security target and falsification map authored | Security claims not yet reviewed or verified; next ADR-0002 |
+| 2026-10-31 | P1.1 | Formal prospective security target and falsification map authored | Not yet reviewed or verified |
+| 2026-10-31 | ADR-0002 | RustCrypto + UniFFI preferred; device wrapper keys remain platform-native | Alternatives and FFI risks documented; pending P1.3 specification and on-device verification |
+| 2026-10-31 | OPEN-05 | Exact pinned crate releases and Rust MSRV/FFI build packaging | To confirm when implementation begins, after P1 review |
+| 2026-10-31 | OPEN-06 | Password encoding, raw KDF-to-root hierarchy, secure recovery and rollback | To specify in P1.3; no blind password-verifier-to-key reuse |
 
-## Immediate next task (P1.2)
+## Immediate next task (P1.3)
 
-**Goal:** choose candidate Rust cryptographic dependencies, platform FFI boundary and device key lifecycle safely.
-- Inputs: `docs/08_SECURITY_TARGET.md`, `docs/02_CRYPTO_ARCHITECTURE.md` and roadmap P1.
-- Deliverable: `docs/decisions/0002-crypto-dependencies-ffi.md` with library comparison, maintenance and supply-chain policy, secret handling, benchmark parameters, and audit/trust boundary.
-- Exit: actionable library/FFI choice with documented risks; **no crypto implementation until P1.3 envelope is reviewed and overall P1 gate is satisfied**.
-- Then P1.3: normative versioned envelope, nonce strategy, authenticated context and test vectors specification.
+**Goal:** write the reviewable versioned on-disk envelope and key schedule for baseline Vault, explicitly excluding unproven Shadow deniability.
+- Inputs: `docs/08_SECURITY_TARGET.md`, `docs/02_CRYPTO_ARCHITECTURE.md`, ADR-0002, T0/T1 security target and P3 rollback limitations.
+- Deliverable: `docs/09_ENVELOPE_FORMAT_V0.md` and ADR-0003, specifying canonical encoding, object header, secret/public fields, KDF params, salt/nonce requirements, domain separation, associated-data binding, verified-read API, resource limits, error classes, migration and recovery invariants.
+- Exit: no ambiguous byte layout or unauthenticated-context fields; proposed deterministic synthetic test-vector contract and key rotation path; **P1.4 tests + P1.5 review still required before P2 code**.
+- Priority: start with Vault; do not add an apparently 'hidden' flag or fake hidden-key safety guarantee.
 
 ## Session log — 2026-10-31 P1.1
 
@@ -58,6 +61,15 @@
 - **No executable tests, encrypted storage engine or security audit performed.**
 - Branch: `docs/p1-1-security-target-20261031`; PR #2 merged to main (squash), 2026-10-31 JST.
 - Next: P1.2 ADR-0002; do not mistake test contracts for passing tests.
+
+## Session log — 2026-10-31 P1.2
+
+- Re-read current main docs and official RustCrypto, UniFFI, Apple and Android platform documentation.
+- Added `docs/decisions/0002-crypto-dependencies-ffi.md` with candidate libraries, explicit Rust/native boundary, OS wrapper key constraints, upgrade/audit policy and P1.3 open questions.
+- Updated crypto architecture, roadmap, README and progress references.
+- **Documentation only**: no code, dependency manifest, `Cargo.lock`, platform build, cryptographic runtime test or independent audit.
+- Branch: `docs/p1-2-crypto-dependencies-ffi-20261031`; verify PR merge state in GitHub history.
+- Next: P1.3 envelope-format specification + ADR-0003.
 
 ## Handoff recipe (another AI, mobile or desktop)
 
