@@ -44,7 +44,10 @@ mod tests {
     #[test]
     fn no_usable_vault_operations_in_p2_1() {
         let mut vault = PrototypeVault::new_synthetic_only();
-        assert_eq!(vault.import_encrypted(b"synthetic"), Err(VaultError::NotImplemented));
+        assert_eq!(
+            vault.import_encrypted(b"synthetic"),
+            Err(VaultError::NotImplemented)
+        );
         assert_eq!(vault.synthetic_object_count(), 0);
         assert!(!PrototypeVault::crypto_is_ready());
         assert_eq!(PrototypeVault::candidate_max_object_len(), 1_048_680);

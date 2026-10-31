@@ -19,8 +19,8 @@ Eidoron は、端末側で暗号化してからクラウドへ同期する、プ
 
 - Phase 0 / Foundation documentation — **completed (2026-10-31)**
 - Phase 1 / Threat-model and crypto protocol review — **P1.1–P1.5 documents and internal review recorded; implementation/independent audit unverified**
-- Rust code — **P2.1 synthetic scaffold authored; cryptography, vault operations and sync NOT implemented; compilation NOT verified**
-- Phase 2 / Rust Vault — **P2.1 scaffold partially complete: actual cargo build/test pending**
+- Rust code — **P2.1 synthetic scaffold compiles on rustc 1.99.1 (2026-10-31); cryptography, vault operations and sync NOT implemented**
+- Phase 2 / Rust Vault — **P2.1 verification passed (fmt, 10 unit tests, clippy); cryptography NOT implemented**
 - Production readiness — **none**
 
 ## Documentation index
@@ -33,6 +33,7 @@ Eidoron は、端末側で暗号化してからクラウドへ同期する、プ
 - [Adversarial test and fuzz plan (P1.4)](docs/10_TEST_AND_FUZZ_PLAN.md)
 - [Internal security design review (P1.5)](docs/11_SECURITY_DESIGN_REVIEW.md)
 - [Rust implementation plan and verification status (P2)](docs/12_P2_IMPLEMENTATION.md)
+- [Development plan after compiler verification](docs/PLAN.md)
 - [Storage, deniability research and sync](docs/03_STORAGE_SYNC.md)
 - [Product and intelligence-inspired UX](docs/04_PRODUCT_UX.md)
 - [Implementation phases and acceptance gates](docs/05_IMPLEMENTATION_ROADMAP.md)
@@ -43,7 +44,7 @@ Eidoron は、端末側で暗号化してからクラウドへ同期する、プ
 - [P1.5 scope and security restrictions — ADR-0004](docs/decisions/0004-security-review-scope-and-safety.md)
 - [Research and validation references](docs/07_RESEARCH_VALIDATION.md)
 
-**Next work unit:** P2.1 verification — regenerate/check the manually seeded `Cargo.lock` with Rust 1.99.1, then run `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline`, and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings`. Source scaffold and tests are committed, **not run**. Only after verified compilation should P2.2 add cryptographic known-answer tests.
+**Next work unit:** P2.2 — pin RustCrypto crate versions and add independently sourced known-answer tests for Argon2id, HKDF-SHA256 and XChaCha20-Poly1305. Keep `encrypt_authenticated` fail-closed until those vectors pass. Task order: [docs/PLAN.md](docs/PLAN.md). P2.1 fmt/test/clippy on rustc 1.99.1 is recorded in [docs/12_P2_IMPLEMENTATION.md](docs/12_P2_IMPLEMENTATION.md).
 
 License: [MIT](LICENSE). An open-source license is not a security certification.
 

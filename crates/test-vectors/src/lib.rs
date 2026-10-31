@@ -2,7 +2,7 @@
 //! Synthetic UNAUTHENTICATED shape fixtures for parser-only P2.1 tests.
 //! Not ciphertext, not known-answer cryptographic vectors, never user data.
 
-use eidoron_format::{HEADER_LEN, HEAD_LEN, MIN_OBJECT_LEN};
+use eidoron_format::{HEAD_LEN, HEADER_LEN, MIN_OBJECT_LEN};
 
 /// Header with a fabricated, deliberately invalid wrapped-root tag.
 pub fn synthetic_untrusted_header() -> [u8; HEADER_LEN] {
@@ -44,8 +44,7 @@ pub fn synthetic_untrusted_object() -> [u8; MIN_OBJECT_LEN] {
 mod tests {
     use super::*;
     use eidoron_format::{
-        inspect_untrusted_header, inspect_untrusted_head, inspect_untrusted_object,
-        ShapeError,
+        ShapeError, inspect_untrusted_head, inspect_untrusted_header, inspect_untrusted_object,
     };
 
     #[test]
