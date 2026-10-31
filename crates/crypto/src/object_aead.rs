@@ -66,10 +66,11 @@ pub fn decrypt_authenticated(
     open_plaintext(key, nonce, aad, ciphertext_and_tag)
 }
 
-/// Seal with a caller-supplied nonce. Compiled only for this crate's tests,
-/// so release builds have no deterministic nonce entry point.
-#[cfg(test)]
-pub fn seal_object_with_nonce(
+/// Seal with a nonce the caller already drew.
+///
+/// The vault draws that nonce from the OS CSPRNG and places the same bytes in
+/// the object header before calling this. A fixed nonce belongs in tests.
+pub fn seal_authenticated(
     key: &ObjectKey,
     nonce: &[u8; 24],
     aad: &[u8],
@@ -165,7 +166,7 @@ mod tests {
     #[test]
     fn synthetic_object_matches_independent_oracle() {
         let key = object_key();
-        let sealed = seal_object_with_nonce(&key, &NONCE, &AAD, &PLAINTEXT).expect("seal");
+        let sealed = seal_authenticated(&key, &NONCE, &AAD, &PLAINTEXT).expect("seal");
         assert_eq!(sealed.nonce, NONCE);
         assert_eq!(sealed.ciphertext_and_tag, CIPHERTEXT_AND_TAG);
         let opened = decrypt_authenticated(&key, &NONCE, &AAD, &CIPHERTEXT_AND_TAG).expect("open");
@@ -222,21 +223,21 @@ mod tests {
     fn plaintext_bounds_reject_before_aead() {
         let key = object_key();
         assert!(matches!(
-            seal_object_with_nonce(&key, &NONCE, &AAD, &[]),
+            seal_authenticated(&key, &NONCE, &AAD, &[]),
             Err(CryptoError::UnsupportedParameters)
         ));
         assert!(matches!(
-            seal_object_with_nonce(&key, &NONCE, &AAD, &[0x01]),
+            seal_authenticated(&key, &NONCE, &AAD, &[0x01]),
             Err(CryptoError::UnsupportedParameters)
         ));
         let mut too_long = vec![0x04, 0x00];
         too_long.resize(MAX_OBJECT_PLAINTEXT_LEN + 1, 0);
         assert!(matches!(
-            seal_object_with_nonce(&key, &NONCE, &AAD, &too_long),
+            seal_authenticated(&key, &NONCE, &AAD, &too_long),
             Err(CryptoError::UnsupportedParameters)
         ));
         let minimum = [0x01, 0x00];
-        let sealed = seal_object_with_nonce(&key, &NONCE, &AAD, &minimum).expect("two-byte body");
+        let sealed = seal_authenticated(&key, &NONCE, &AAD, &minimum).expect("two-byte body");
         assert_eq!(sealed.ciphertext_and_tag.len(), MIN_OBJECT_CIPHERTEXT_LEN);
         let opened = decrypt_authenticated(&key, &sealed.nonce, &AAD, &sealed.ciphertext_and_tag)
             .expect("open minimum");

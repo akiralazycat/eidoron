@@ -2,8 +2,8 @@
 
 - Created: **2026-10-31 JST**
 - Last updated: **2026-10-31 JST**
-- Current baseline: **local sync folder; forks kept; temp files are not objects**
-- Implementation status: **46 unit tests pass; NO CLOUD API, NO CREDENTIALS; crash claim limited to tested temp cleanup**
+- Current baseline: **sync-folder create/open; forks kept; temp files are not objects**
+- Implementation status: **53 unit tests pass; NO CLOUD API, NO CREDENTIALS; crash claim limited to tested temp cleanup**
 - Foundation branch: `docs/foundation-master-plan-20261031` (merged)
 - Foundation PR: https://github.com/akiralazycat/eidoron/pull/1 — merged into main on 2026-10-31 JST
 - Foundation merge commit: `7835fd40e5608f5525db9dcb625b30ddff395e7e`
@@ -39,7 +39,7 @@
 | P1.5 | Internal security design review and scope | DONE (docs only) | 2026-10-31; `docs/11_SECURITY_DESIGN_REVIEW.md`, ADR-0004. Not an external audit; release gate BLOCKED |
 | P2.1 | Synthetic local-only Rust workspace | DONE (scaffold verified, no crypto) | rustc 1.99.1 fmt/test/clippy recorded in `docs/12_P2_IMPLEMENTATION.md` |
 | P2.1-V | Verify lockfile, fmt, test, clippy on actual Rust | DONE | 2026-10-31: rustc 1.99.1 (`58cf8f9c3`, 2026-10-13). fmt check, 10 unit tests, clippy `-D warnings`, Cargo-generated path-only lockfile. Next tasks in `docs/PLAN.md` |
-| P2.2 | Known-answer crypto vectors and suite evaluation | PARTIAL | Through M6.24 design/fake on 2026-10-31. Live R2/S3, remote rewrap, biometrics, and Shadow passwords stay out. See `docs/PLAN.md` |
+| P2.2 | Known-answer crypto vectors and suite evaluation | PARTIAL | Through sync-folder create/open on 2026-10-31. Live R2/S3, remote rewrap, biometrics, and Shadow passwords stay out of v1. See `docs/PLAN.md` |
 | P2 | Rust Vault implementation | NOT STARTED | Do not claim ready |
 | P3 | Safe cloud sync | NOT STARTED | Do not claim ready |
 | P4/P5 | iOS / Android native clients | NOT STARTED | Do not claim ready |
@@ -84,13 +84,26 @@
 | 2026-10-31 | product | Consumer sync folder, no vendor API | Cryptomator mold. No central HEAD. Forks are conflicts and both heads are kept. Content ids are not filenames |
 | 2026-10-31 | NFC | Store directory names as NFC | `unicode-normalization` 0.1.26. NFC and NFD é are one stored name |
 | 2026-10-31 | content-id | HMAC-SHA256 under an HKDF key | info `eidoron/v0/content-id \|\| vault_id`. Not SHA-256(plaintext). Do not publish the id in the clear. Oracle: `scripts/content_id_kat.py` |
+| 2026-10-31 | #17 adopted | Show both heads, no auto-merge, no auto-delete of conflict copies | No crash claim beyond tested temp cleanup. Remote rewrap, biometrics, and Shadow password are out of v1. S3 is low priority |
+| 2026-10-31 | vault session | Create and open a sync-folder vault | `Session::status` is Ok / Conflict / Incomplete / Locked. `eidoron_crypto::status()` stays NotImplemented. Wrong password is `Unavailable`. No new fixed ciphertext vector |
 
-## Immediate next task — no cloud account
+## Immediate next task — directory under one head
 
 **Do not** create a Google Drive, Dropbox, R2, or S3 account for this repository, and do not add a vendor SDK.
-- The product writes a local folder. Fork detection is `classify_heads`. Sync-tool conflict copies are listed and not read as objects.
-- Still deferred: remote rewrap, biometrics, a Shadow password, and any crash claim beyond the tested temp-file cleanup.
+- The product writes a local folder. `create_vault` / `open_vault` / `Session::status` exist. Fork detection is `classify_heads`. Sync-tool conflict copies are not read as objects and are not deleted.
+- A UI must not call `write_commit` during a conflict until the user picks a parent. The library does not pick one.
+- Still out of v1: remote rewrap, biometrics, a Shadow password, and any crash claim beyond the tested temp-file cleanup.
 - Explicit scope restrictions: no credentials in git, no real user data, no Shadow/Specter claim.
+
+## Session log — 2026-10-31 vault create and open
+
+- Started from main at `56127af` (PR #17 merged).
+- `create_vault` refuses a non-empty directory, then writes `vault.header` and a generation-0 commit through temp + `sync_all` + rename. `open_vault` uses the header KDF parameters. Wrong password, bad tag, and a bad header are `VaultError::Unavailable`. Display text is `unavailable`.
+- `Session::status` returns `Ok`, `Conflict` (every head), `Incomplete`, or `Locked`. `lock` and drop take the `RootSecret`. `eidoron_crypto::status()` is unchanged.
+- `write_commit` sets the child generation to the parent generation plus one and does not delete another head. A missing parent file stays `Incomplete`. Conflict-copy files planted beside the vault are byte-identical after open.
+- `TempDirStore::open` does not delete `.eidoron-tmp-` files. Cleanup stays on `create`, which create and open of a vault call.
+- No new oracle script. `read_commit_parent` is checked against the existing `genesis_commit_kat.py` fixtures. `Cargo.lock` gained a direct `getrandom` edge for `eidoron-vault` (version 0.4.3, already locked).
+- `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (53 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0 on rustc 1.99.1.
 
 ## Session log — 2026-10-31 sync-folder product
 

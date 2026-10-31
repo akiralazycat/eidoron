@@ -178,6 +178,7 @@ dependencies = [
  "eidoron-format",
  "eidoron-provider-local",
  "eidoron-test-vectors",
+ "getrandom",
  "unicode-normalization",
 ]
 

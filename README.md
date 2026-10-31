@@ -19,8 +19,8 @@ Eidoron は、端末側で暗号化してからクラウドへ同期する、プ
 
 - Phase 0 / Foundation documentation — **completed (2026-10-31)**
 - Phase 1 / Threat-model and crypto protocol review — **P1.1–P1.5 documents and internal review recorded; implementation/independent audit unverified**
-- Rust code — **the vault is a local sync folder; forks are kept; temp files are not objects. No cloud API is called**
-- Phase 2 / Rust Vault — **opaque hex names, NFC directory names, keyed content ids that are not filenames; `status()` is still NotImplemented**
+- Rust code — **a sync folder can be created and opened; forks stay visible; temp files are not objects. No cloud API is called**
+- Phase 2 / Rust Vault — **`Session::status` reports Ok, Conflict, Incomplete, or Locked. `eidoron_crypto::status()` is still the scaffold flag `NotImplemented`. Import stays unavailable**
 - Production readiness — **none**
 
 ## Documentation index
@@ -45,10 +45,10 @@ Eidoron は、端末側で暗号化してからクラウドへ同期する、プ
 - [P1.5 scope and security restrictions — ADR-0004](docs/decisions/0004-security-review-scope-and-safety.md)
 - [Research and validation references](docs/07_RESEARCH_VALIDATION.md)
 
-**Next work unit:** do not add a cloud account or a vendor SDK. Open questions are listed in [docs/PLAN.md](docs/PLAN.md). S3 conditional HEAD stays an optional later backend.
+**Next work unit:** a directory object under one user-chosen head. Do not add a cloud account or a vendor SDK. Open questions are listed in [docs/PLAN.md](docs/PLAN.md).
 
 License: [MIT](LICENSE). An open-source license is not a security certification.
 
 ## P2.1 source safety warning
 
-The `crates/` tree is a **synthetic-only nonproduction scaffold**, not a usable encrypted vault. `eidoron-crypto` fails closed with `NotImplemented`; `eidoron-format` inspects **untrusted** public byte shapes only. Never import real files or secrets. No cloud provider, operating-system secure keystore integration or hidden container is included.
+The `crates/` tree is a **synthetic-only nonproduction scaffold**, not a usable encrypted vault. `create_vault` / `open_vault` run on a local directory with the candidate Argon2id profile. `eidoron_crypto::status()` stays `NotImplemented`. `eidoron-format` inspects **untrusted** public byte shapes only. Never import real files or secrets. No cloud provider, operating-system secure keystore integration or hidden container is included.

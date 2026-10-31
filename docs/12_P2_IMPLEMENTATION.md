@@ -2,7 +2,7 @@
 
 - Created / updated: **2026-10-31 JST**
 - Milestone: **P2.1 — synthetic local-only Rust workspace**
-- Status: **scaffold verified on rustc 1.99.1 (2026-10-31); cryptography not implemented**
+- Status: **sync-folder create/open on rustc 1.99.1 (2026-10-31); not a production vault**
 - Governing decisions: [P1.5 review](11_SECURITY_DESIGN_REVIEW.md), [ADR-0004](decisions/0004-security-review-scope-and-safety.md)
 - Previous plans: [Roadmap](05_IMPLEMENTATION_ROADMAP.md) and [P1.4 test plan](10_TEST_AND_FUZZ_PLAN.md)
 
@@ -14,10 +14,10 @@ Set up a reproducible local-only Rust workspace with **untrusted public format s
 
 | Crate | Responsibility | Implemented P2.1 | NOT implemented |
 |---|---|---|---|
-| `eidoron-crypto` | Cryptographic boundary | Primitive KATs; key schedule; object AEAD under ObjectKey. `status()` is still NotImplemented | Vault session, import, unlock |
+| `eidoron-crypto` | Cryptographic boundary | Primitive KATs; key schedule; object AEAD under ObjectKey. `status()` is still NotImplemented | Import, a production-ready flag |
 | `eidoron-format` | Public byte parsing | Fixed lengths, magic/version/suite/resource checks, only `Untrusted*` types | AEAD verification, CBOR schemas, full graph integrity |
-| `eidoron-provider-local` | Synthetic local object storage | Memory HashMap and a caller-chosen directory of lowercase-hex files. Identical opaque bytes retry; different bytes are rejected. Crash safety is not claimed | Durable crash recovery, cloud provider, CAS, multi-device |
-| `eidoron-vault` | Session/vault integration | Explicitly unavailable operations | Real vault creation, import, unlock, export, recovery |
+| `eidoron-provider-local` | Synthetic local object storage | Memory HashMap and a caller-chosen directory of lowercase-hex files. Identical opaque bytes retry; different bytes are rejected. `create` removes leftover temp names; `open` does not. Crash safety is not claimed | Durable crash recovery, cloud provider, CAS, multi-device |
+| `eidoron-vault` | Session/vault integration | `create_vault`, `open_vault`, `Session::status` (`Ok`, `Conflict`, `Incomplete`, `Locked`), lock on drop | Import, directory and file objects, export, recovery |
 | `eidoron-test-vectors` | Synthetic deterministic test harness | Shape checks, key-schedule constants, and one object-AEAD ciphertext from `scripts/object_aead_kat.py` | Commit-graph fixtures |
 
 P2.1 had no external crates. P2.2 M1 added the five pinned RustCrypto crates listed in the checkpoint below; UniFFI is still absent. The P2.1 lockfile was path-only. The current `Cargo.lock` was regenerated with `cargo generate-lockfile` after those dependencies were added.
@@ -159,9 +159,17 @@ Tested crash-related behavior: leftover temp names are removed; a temp file is n
 
 On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (46 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0.
 
+## Vault session checkpoint (2026-10-31)
+
+`create_vault` writes `vault.header` and one genesis commit into an empty directory. Both use the temp file, `sync_all`, and rename path. `open_vault` derives the wrap key with the header's Argon2id parameters. Wrong password and a bad header share `VaultError::Unavailable`. `Session::status` uses `classify_heads`. Conflict copies are not commits and are left on disk. A missing parent file is `Incomplete`. `lock` and drop drop the `RootSecret`. `eidoron_crypto::status()` stays `NotImplemented`.
+
+No new Python vector was added. Commit object ids and nonces are OS random. Parent parsing of the existing genesis fixtures is checked against `scripts/genesis_commit_kat.py` bytes already in the tree. `Cargo.lock` lists `getrandom` 0.4.3 as a direct dependency of `eidoron-vault`; that crate was already in the lockfile.
+
+On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (53 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0.
+
 ## Next bounded work unit
 
-Do not add a cloud account or SDK. Remote rewrap, biometrics, and a Shadow password stay out. Further crash claims need a fault-injection test that does not exist yet.
+A directory object under one chosen head. Do not add a cloud account or SDK. Remote rewrap, biometrics, and a Shadow password stay out of v1. Further crash claims need a fault-injection test that does not exist yet.
 
 ## Security / release state
 

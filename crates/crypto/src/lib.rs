@@ -2,8 +2,8 @@
 //! Cryptographic boundary for the local synthetic prototype.
 //!
 //! Passphrase and object keys follow the candidate v0 schedule. Object bodies
-//! are sealed with XChaCha20-Poly1305. [`status`] stays [`CryptoStatus::NotImplemented`]
-//! until a vault session exists. Wiping key bytes on drop is best-effort.
+//! are sealed with XChaCha20-Poly1305. [`status`] stays [`CryptoStatus::NotImplemented`].
+//! That flag is not the vault session status. Wiping key bytes on drop is best-effort.
 
 mod object_aead;
 mod schedule;
@@ -14,7 +14,7 @@ mod published_kat;
 pub use object_aead::{
     EncryptedObject, MAX_OBJECT_CIPHERTEXT_LEN, MAX_OBJECT_PLAINTEXT_LEN,
     MIN_OBJECT_CIPHERTEXT_LEN, MIN_OBJECT_PLAINTEXT_LEN, decrypt_authenticated,
-    encrypt_authenticated,
+    encrypt_authenticated, seal_authenticated,
 };
 pub use schedule::{
     ContentIdKey, KdfParams, ObjectKey, RawPwdKey, RootSecret, WRAPPED_ROOT_LEN, WrapKey,
