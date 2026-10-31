@@ -25,8 +25,8 @@ P6/P7 are parallel research and MUST NOT hold up an honest, useful Vault release
 - P1.1: **DONE (documentation only, 2026-10-31)** — T0–T6 observer definitions, prospective security claims C01–C08, falsification matrix SEC/DEN, research games and failure semantics in [08_SECURITY_TARGET.md](08_SECURITY_TARGET.md). Not peer-reviewed, implemented or certified.
 - P1.2: **DONE (documentation only, 2026-10-31)** — ADR-0002 records RustCrypto candidate dependencies, UniFFI binding preference, OS device-key wrappers, secure-secret-handling/FFI risks, review and dependency policy. No crates integrated or security audit executed.
 - P1.3: **DONE (documentation only, 2026-10-31)** — [Vault Envelope v0 candidate](09_ENVELOPE_FORMAT_V0.md) and [ADR-0003](decisions/0003-envelope-and-key-hierarchy.md): exact public binary offsets, protected CBOR metadata, random-root + password wrapper, per-object HKDF keys, AAD, HEAD, rewrap/rotation limitations and synthetic fixture contract. Not implemented or reviewed.
-- P1.4: **NEXT** — threat-oriented test plan for file corruption, swap, truncation, replay, metadata substitution, KDF denial-of-service, deterministic exact-byte vectors and parser fuzz.
-- P1.5: External/internal design review checklist and explicit release/claim policy.
+- P1.4: **DONE (documentation only, 2026-10-31)** — [Adversarial tests and fuzz plan](10_TEST_AND_FUZZ_PLAN.md): VEC/PAR/CBOR/GRAPH/SYNC matrix, SEC-001–013 and CLAIM-001 coverage, proposed fuzz/property cases, synthetic fixture and platform validation criteria. **Nothing executed; BLK-01..10 remain open.**
+- P1.5: **NEXT** — external/internal design review checklist, disposition of security blockers BLK-01..10 and release/claim policy. No automatic P2 approval.
 Exit: no unresolved decision that impacts encryption safety. Only then begin coding P2.
 
 ## P2 — exact work packages
@@ -81,6 +81,12 @@ Exit: never silently lose a user's successfully committed data.
 - Sources: [Vault Envelope v0](09_ENVELOPE_FORMAT_V0.md) and [ADR-0003](decisions/0003-envelope-and-key-hierarchy.md).
 - Recorded complete **candidate** byte offsets/sizes/endianness; public vs secret fields, key wrapping, deterministic metadata, authenticated references, nonce handling, rollback limitations and resource limits.
 - **Gate passed: documentation only.** No executable vectors, parser, AEAD implementation, external review, mobile benchmarks or production compatibility guarantee. P1.4/P1.5 remain mandatory before P2.
+
+## P1.4 adversarial test-design evidence (2026-10-31)
+
+- Source: [10_TEST_AND_FUZZ_PLAN.md](10_TEST_AND_FUZZ_PLAN.md).
+- Exact-byte test vector contract, malicious cloud rollback/CAS conditions, canonical CBOR rejection, Argon2 resource guardrails, secret-handling/FFI and real-device verification plans recorded.
+- **No fixtures, compiled tests, actual fuzzing or independent audit.** P1.5 must resolve blockers before any cryptographic P2 code.
 
 ## QA matrix (minimum)
 

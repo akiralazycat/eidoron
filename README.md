@@ -18,7 +18,7 @@ Eidoron は、端末側で暗号化してからクラウドへ同期する、プ
 ## Current status
 
 - Phase 0 / Foundation documentation — **completed (2026-10-31)**
-- Phase 1 / Threat-model and crypto protocol review — **in progress (P1.1–P1.3 security target, dependency and envelope design recorded; implementation unverified)**
+- Phase 1 / Threat-model and crypto protocol review — **in progress (P1.1–P1.4 security target, dependency, format and test plans recorded; implementation unverified)**
 - Application / encryption / sync code — **not implemented**
 - Production readiness — **none**
 
@@ -29,6 +29,7 @@ Eidoron は、端末側で暗号化してからクラウドへ同期する、プ
 - [Normative security target (P1.1)](docs/08_SECURITY_TARGET.md)
 - [Cryptographic architecture draft](docs/02_CRYPTO_ARCHITECTURE.md)
 - [Vault envelope format v0 (P1.3 review candidate)](docs/09_ENVELOPE_FORMAT_V0.md)
+- [Adversarial test and fuzz plan (P1.4)](docs/10_TEST_AND_FUZZ_PLAN.md)
 - [Storage, deniability research and sync](docs/03_STORAGE_SYNC.md)
 - [Product and intelligence-inspired UX](docs/04_PRODUCT_UX.md)
 - [Implementation phases and acceptance gates](docs/05_IMPLEMENTATION_ROADMAP.md)
@@ -38,6 +39,6 @@ Eidoron は、端末側で暗号化してからクラウドへ同期する、プ
 - [Envelope and key hierarchy decision — ADR-0003](docs/decisions/0003-envelope-and-key-hierarchy.md)
 - [Research and validation references](docs/07_RESEARCH_VALIDATION.md)
 
-**Next work unit:** P1.4 — expand test requirements into executable test-vector/fuzz/fault-injection plans for the exact v0 candidate format. P1.5 security design review and resolution of blocking findings must precede P2 encryption implementation.
+**Next work unit:** P1.5 — independent security design review, disposition of BLK-01..10, and resolution of blocking protocol/format findings. P1.4 documents proposed tests; it has **not executed** them. No P2 encryption implementation until the design gate passes.
 
 License: [MIT](LICENSE). An open-source license is not a security certification.
