@@ -2,8 +2,8 @@
 
 - Created: **2026-10-31 JST**
 - Last updated: **2026-10-31 JST**
-- Current baseline: **M5.22 chunk identity check passes; vault session status is still NotImplemented**
-- Implementation status: **one chunk compared with the caller; 32 unit tests pass; NO VAULT SESSION**
+- Current baseline: **M6.23 temporary directory store passes; crash safety is not claimed**
+- Implementation status: **opaque hex files; 36 unit tests pass; NO CLOUD, NO CRASH-SAFETY CLAIM**
 - Foundation branch: `docs/foundation-master-plan-20261031` (merged)
 - Foundation PR: https://github.com/akiralazycat/eidoron/pull/1 — merged into main on 2026-10-31 JST
 - Foundation merge commit: `7835fd40e5608f5525db9dcb625b30ddff395e7e`
@@ -39,7 +39,7 @@
 | P1.5 | Internal security design review and scope | DONE (docs only) | 2026-10-31; `docs/11_SECURITY_DESIGN_REVIEW.md`, ADR-0004. Not an external audit; release gate BLOCKED |
 | P2.1 | Synthetic local-only Rust workspace | DONE (scaffold verified, no crypto) | rustc 1.99.1 fmt/test/clippy recorded in `docs/12_P2_IMPLEMENTATION.md` |
 | P2.1-V | Verify lockfile, fmt, test, clippy on actual Rust | DONE | 2026-10-31: rustc 1.99.1 (`58cf8f9c3`, 2026-10-13). fmt check, 10 unit tests, clippy `-D warnings`, Cargo-generated path-only lockfile. Next tasks in `docs/PLAN.md` |
-| P2.2 | Known-answer crypto vectors and suite evaluation | PARTIAL | M1, M2, M4 and M5.20–M5.22 done 2026-10-31. **NEXT** is M6.23 temp-directory writes. `status()` remains `NotImplemented`. See `docs/PLAN.md` |
+| P2.2 | Known-answer crypto vectors and suite evaluation | PARTIAL | M1–M5 and M6.23 done 2026-10-31. M6.24 cloud and later stay deferred. See `docs/PLAN.md` |
 | P2 | Rust Vault implementation | NOT STARTED | Do not claim ready |
 | P3 | Safe cloud sync | NOT STARTED | Do not claim ready |
 | P4/P5 | iOS / Android native clients | NOT STARTED | Do not claim ready |
@@ -79,11 +79,23 @@
 | 2026-10-31 | M5.20 | Genesis commit predecessor check | Decrypted body only. Kind 0x01, generation 0, null prior. No general CBOR decoder. Fixtures from `scripts/genesis_commit_kat.py` |
 | 2026-10-31 | M5.21 | Directory name rejection without NFC | Empty, longer than 255 UTF-8 bytes, `/`, U+0000, and the whole names `.` and `..`. `file.txt` and non-NFC text are accepted. NFC/NFD coexistence is an open question in `docs/PLAN.md` |
 | 2026-10-31 | M5.22 | Chunk file_id and ordinal check | One decrypted chunk compared with the caller. No store scan. Either mismatch is `Mismatch`. Payload bytes are ignored |
+| 2026-10-31 | M6.23 | Temporary directory of opaque objects | Lowercase hex file names. Identical opaque bytes retry. Different bytes rejected. Not a plaintext hash. Crash safety not tested |
+| 2026-10-31 | M6.24 | Cloud, HEAD CAS, remote rewrap, biometrics, Shadow password | Deferred until a provider is chosen and its conditional writes are recorded |
 
-## Immediate next task (M6.23) — temporary opaque files
+## Immediate next task — blocked on owner choices
 
-**Goal:** write opaque 32-byte ids into a temporary directory. An identical byte retry succeeds. A different payload at the same id is rejected. Do not claim crash safety.
+**Do not start** cloud sync, conditional HEAD publication, remote password rewrap, biometrics, or a second Shadow password. Those need a chosen provider and a record of its conditional writes (PLAN item 24, ADR-0004).
+- Open questions: whether NFC and NFD directory names may coexist, and which keyed hash (HMAC-SHA256, keyed BLAKE, or HKDF) storage idempotency will use.
 - Explicit scope restrictions: no cloud, real user data, native secrets, Shadow/Specter, production security claims; no mandatory GitHub Actions or user's PC.
+
+## Session log — 2026-10-31 M6.23 temporary directory
+
+- Started from main at `1b87dd9` (PR #14 merged).
+- `TempDirStore` writes opaque bytes into a caller-chosen directory. The file name is 64 lowercase hex characters of the 32-byte id, so a byte of `0x2f` or `0x00` does not create another path component.
+- An identical byte string at the same id returns `IdenticalRetry` and leaves the file unchanged. A different byte string returns `ExistingObjectDiffers`. The comparison is of the opaque bytes already stored, not a hash of plaintext.
+- A directory sitting on the object's path returns `Io`. The error text does not include the path or the payload.
+- Crash safety and atomic replacement were not tested and are not claimed. Item 24 was not started.
+- `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (36 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0 on rustc 1.99.1.
 
 ## Session log — 2026-10-31 M5.22 chunk identity
 

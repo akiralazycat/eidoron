@@ -16,7 +16,7 @@ Set up a reproducible local-only Rust workspace with **untrusted public format s
 |---|---|---|---|
 | `eidoron-crypto` | Cryptographic boundary | Primitive KATs; key schedule; object AEAD under ObjectKey. `status()` is still NotImplemented | Vault session, import, unlock |
 | `eidoron-format` | Public byte parsing | Fixed lengths, magic/version/suite/resource checks, only `Untrusted*` types | AEAD verification, CBOR schemas, full graph integrity |
-| `eidoron-provider-local` | Synthetic local object storage | Memory-only HashMap, immutable create & identical retry | Durable filesystem, crashes, cloud provider, CAS, multi-device |
+| `eidoron-provider-local` | Synthetic local object storage | Memory HashMap and a caller-chosen directory of lowercase-hex files. Identical opaque bytes retry; different bytes are rejected. Crash safety is not claimed | Durable crash recovery, cloud provider, CAS, multi-device |
 | `eidoron-vault` | Session/vault integration | Explicitly unavailable operations | Real vault creation, import, unlock, export, recovery |
 | `eidoron-test-vectors` | Synthetic deterministic test harness | Shape checks, key-schedule constants, and one object-AEAD ciphertext from `scripts/object_aead_kat.py` | Commit-graph fixtures |
 
@@ -137,9 +137,15 @@ On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked 
 
 On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (32 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0.
 
+## M6.23 checkpoint (2026-10-31)
+
+`TempDirStore` stores opaque bytes under a 64-character lowercase hex name. Identical bytes at one id may be retried. Different bytes are rejected. The check compares those stored bytes. It does not hash plaintext. Crash safety and atomic replacement were not tested and are not claimed.
+
+On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (36 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0.
+
 ## Next bounded work unit
 
-Next is **M6.23** in [PLAN.md](PLAN.md): write opaque 32-byte ids into a temporary directory, allow an identical retry, and reject a different payload. No crash-safety claim. Real files stay out of the tree.
+PLAN item 24 stays deferred: cloud, conditional HEAD publication, remote rewrap, biometrics, and a second Shadow password. A provider must be chosen and its conditional writes recorded before that work. Open questions remain in [PLAN.md](PLAN.md): NFC/NFD directory names, and which keyed hash to use.
 
 ## Security / release state
 
