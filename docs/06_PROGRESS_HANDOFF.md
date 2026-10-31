@@ -2,8 +2,8 @@
 
 - Created: **2026-10-31 JST**
 - Last updated: **2026-10-31 JST**
-- Current baseline: **NFC names, keyed content ids, and an in-memory conditional HEAD; no live cloud**
-- Implementation status: **39 unit tests pass; NO NETWORK CLIENT, NO CREDENTIALS, NO CRASH-SAFETY CLAIM**
+- Current baseline: **local sync folder; forks kept; temp files are not objects**
+- Implementation status: **46 unit tests pass; NO CLOUD API, NO CREDENTIALS; crash claim limited to tested temp cleanup**
 - Foundation branch: `docs/foundation-master-plan-20261031` (merged)
 - Foundation PR: https://github.com/akiralazycat/eidoron/pull/1 — merged into main on 2026-10-31 JST
 - Foundation merge commit: `7835fd40e5608f5525db9dcb625b30ddff395e7e`
@@ -80,15 +80,27 @@
 | 2026-10-31 | M5.21 | Directory name rejection without NFC | Empty, longer than 255 UTF-8 bytes, `/`, U+0000, and the whole names `.` and `..`. `file.txt` and non-NFC text are accepted. NFC/NFD coexistence is an open question in `docs/PLAN.md` |
 | 2026-10-31 | M5.22 | Chunk file_id and ordinal check | One decrypted chunk compared with the caller. No store scan. Either mismatch is `Mismatch`. Payload bytes are ignored |
 | 2026-10-31 | M6.23 | Temporary directory of opaque objects | Lowercase hex file names. Identical opaque bytes retry. Different bytes rejected. Not a plaintext hash. Crash safety not tested |
-| 2026-10-31 | M6.24 | S3-compatible conditional HEAD, design and fake only | Owner chose R2 or AWS S3 as the family to measure. `ConditionalHead` plus `MemoryHead`. No network and no credentials. Experiment list in `docs/13_S3_CONDITIONAL_HEAD.md` |
+| 2026-10-31 | M6.24 | S3-compatible conditional HEAD, design and fake only | Superseded as the product path the same day. Code remains an optional future backend |
+| 2026-10-31 | product | Consumer sync folder, no vendor API | Cryptomator mold. No central HEAD. Forks are conflicts and both heads are kept. Content ids are not filenames |
 | 2026-10-31 | NFC | Store directory names as NFC | `unicode-normalization` 0.1.26. NFC and NFD é are one stored name |
 | 2026-10-31 | content-id | HMAC-SHA256 under an HKDF key | info `eidoron/v0/content-id \|\| vault_id`. Not SHA-256(plaintext). Do not publish the id in the clear. Oracle: `scripts/content_id_kat.py` |
 
-## Immediate next task — record provider experiments
+## Immediate next task — no cloud account
 
-**Goal:** fill in the eight records in `docs/13_S3_CONDITIONAL_HEAD.md` for either Cloudflare R2 or AWS S3, using credentials that stay outside this repository. Do not add an SDK until those records exist.
-- Still deferred: remote password rewrap, biometrics, a second Shadow password, crash-safe directory writes.
-- Explicit scope restrictions: no cloud credentials in git, no real user data, no Shadow/Specter claim; no mandatory GitHub Actions or user's PC.
+**Do not** create a Google Drive, Dropbox, R2, or S3 account for this repository, and do not add a vendor SDK.
+- The product writes a local folder. Fork detection is `classify_heads`. Sync-tool conflict copies are listed and not read as objects.
+- Still deferred: remote rewrap, biometrics, a Shadow password, and any crash claim beyond the tested temp-file cleanup.
+- Explicit scope restrictions: no credentials in git, no real user data, no Shadow/Specter claim.
+
+## Session log — 2026-10-31 sync-folder product
+
+- Started from main at `4a78d8d` (PR #16 merged).
+- Recorded the product decision: local folder, user's own sync tool, no cloud API. `ConditionalHead` stays in the tree and is marked non-primary in `docs/13_S3_CONDITIONAL_HEAD.md` and the envelope.
+- `classify_heads` keeps every head. Two children of one parent are `Conflict`. A missing parent yields `Incomplete` and the child is kept. A parent cycle is an error, not an empty history. The function does not delete commits.
+- `TempDirStore` writes via `.eidoron-tmp-` in the same directory, `File::sync_all`, then rename. `create` deletes leftover temp names. `get` only opens an exact 64-character lowercase hex name, so a partial temp file and a `name (1)` or `conflicted copy` sibling are not returned as the object. Those siblings are classified and left on disk.
+- Directory `sync_all` is attempted and its failure is ignored. A crash that stops before rename is not tested. The tested claim is only: after `create`, planted temp names are gone; temp names are not objects; after `put_immutable` returns, the hex file contains the bytes that were written.
+- Content ids remain HMAC output and are not file names.
+- `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (46 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0 on rustc 1.99.1.
 
 ## Session log — 2026-10-31 owner decisions: NFC, content id, conditional HEAD
 

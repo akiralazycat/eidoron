@@ -1,4 +1,8 @@
-//! Provider-agnostic conditional HEAD update.
+//! Optional future backend: provider-agnostic conditional HEAD update.
+//!
+//! The consumer product does not call a cloud API. A vault is a local folder
+//! the user's own sync tool copies, and that folder has no single HEAD file.
+//! This module stays for a possible later adapter. It is not the primary path.
 //!
 //! Semantics follow HTTP `If-None-Match: *` and `If-Match: <etag>`.
 //! [`MemoryHead`] is an in-process fake. It does not open a socket.

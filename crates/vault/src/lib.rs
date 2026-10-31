@@ -8,10 +8,12 @@
 
 mod chunk_identity;
 mod commit_check;
+mod commit_history;
 mod directory_name;
 
 pub use chunk_identity::{ChunkIdentityError, check_chunk_identity};
 pub use commit_check::{CommitCheckError, GenesisPredecessor, check_genesis_predecessor};
+pub use commit_history::{HistoryError, HistoryStatus, HistoryView, LocalCommit, classify_heads};
 pub use directory_name::{DirectoryNameError, MAX_DIRECTORY_NAME_BYTES, check_directory_name};
 
 use eidoron_provider_local::MemoryStore;

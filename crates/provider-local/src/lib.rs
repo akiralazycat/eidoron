@@ -13,7 +13,7 @@ mod temp_dir;
 pub use conditional_head::{
     ConditionalHead, Etag, HeadError, HeadPrecondition, MemoryHead, StoredHead,
 };
-pub use temp_dir::TempDirStore;
+pub use temp_dir::{FolderEntry, TempDirStore, classify_file_name};
 
 use std::collections::HashMap;
 use std::fmt;

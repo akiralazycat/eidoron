@@ -1,8 +1,8 @@
 # S3-compatible conditional HEAD — experiment plan
 
 - Created: **2026-10-31**
-- Status: **design and in-memory fake only. No network calls, no credentials, no provider is trusted yet.**
-- Owner choice: the first cloud family is **S3-compatible object storage with conditional writes**. Candidates to measure are **Cloudflare R2** and **AWS S3**. This note does not pick between them.
+- Status: **optional future backend, not the product path.** The consumer app stores the vault in a local folder and does not call a cloud API. This note stays so an S3-compatible adapter can be added later. No network calls and no credentials.
+- Earlier owner choice, now demoted: S3-compatible conditional writes (Cloudflare R2 or AWS S3) are a possible later backend, not the first shipping storage.
 
 ## What the code does now
 
