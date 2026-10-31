@@ -26,12 +26,12 @@ P6/P7 are parallel research and MUST NOT hold up an honest, useful Vault release
 - P1.2: **DONE (documentation only, 2026-10-31)** — ADR-0002 records RustCrypto candidate dependencies, UniFFI binding preference, OS device-key wrappers, secure-secret-handling/FFI risks, review and dependency policy. No crates integrated or security audit executed.
 - P1.3: **DONE (documentation only, 2026-10-31)** — [Vault Envelope v0 candidate](09_ENVELOPE_FORMAT_V0.md) and [ADR-0003](decisions/0003-envelope-and-key-hierarchy.md): exact public binary offsets, protected CBOR metadata, random-root + password wrapper, per-object HKDF keys, AAD, HEAD, rewrap/rotation limitations and synthetic fixture contract. Not implemented or reviewed.
 - P1.4: **DONE (documentation only, 2026-10-31)** — [Adversarial tests and fuzz plan](10_TEST_AND_FUZZ_PLAN.md): VEC/PAR/CBOR/GRAPH/SYNC matrix, SEC-001–013 and CLAIM-001 coverage, proposed fuzz/property cases, synthetic fixture and platform validation criteria. **Nothing executed; BLK-01..10 remain open.**
-- P1.5: **NEXT** — external/internal design review checklist, disposition of security blockers BLK-01..10 and release/claim policy. No automatic P2 approval.
-Exit: no unresolved decision that impacts encryption safety. Only then begin coding P2.
+- P1.5: **DONE (internal documentation review only, 2026-10-31)** — [review and BLK-01..10 dispositions](11_SECURITY_DESIGN_REVIEW.md), [ADR-0004](decisions/0004-security-review-scope-and-safety.md). Synthetic offline/local-only P2 prototype conditionally permitted. **Independent audit/cloud/release gates NOT passed**.
+Exit for synthetic P2 prototype: review must define a narrow local-only boundary, verified no-release/nonclaim policy and unresolved risks; **real-data, cloud and production security use remain prohibited until independent reviews and tests**.
 
 ## P2 — exact work packages
 
-- P2.1: Rust workspace skeleton (`crates/crypto`, `format`, `vault`, `provider-local`, `test-vectors`).
+- P2.1: **NEXT** — offline/synthetic-only Rust workspace skeleton (`crates/crypto`, `format`, `vault`, `provider-local`, `test-vectors`), pinned toolchain/deps, safety notice and reproducible smoke tests. No real data or cloud provider.
 - P2.2: deterministic versioned test vectors and direct primitive interoperability tests.
 - P2.3: stream/chunk AEAD implementation, length limits, strict error model and zeroization attempts.
 - P2.4: encrypted tree/index with object↔parent↔generation authenticated bindings.
@@ -87,6 +87,12 @@ Exit: never silently lose a user's successfully committed data.
 - Source: [10_TEST_AND_FUZZ_PLAN.md](10_TEST_AND_FUZZ_PLAN.md).
 - Exact-byte test vector contract, malicious cloud rollback/CAS conditions, canonical CBOR rejection, Argon2 resource guardrails, secret-handling/FFI and real-device verification plans recorded.
 - **No fixtures, compiled tests, actual fuzzing or independent audit.** P1.5 must resolve blockers before any cryptographic P2 code.
+
+## P1.5 internal review record (2026-10-31)
+
+- [Review document](11_SECURITY_DESIGN_REVIEW.md) and [ADR-0004](decisions/0004-security-review-scope-and-safety.md) cover BLK-01..10 and five additional findings, with explicit nonclaims and release gates.
+- Candidate P1.3 format now records corrected ≥2-byte plaintext, trusted local checkpoint semantics, nonrevoking password rewrap, passphrase-only recovery boundary, graph-level generation binding and local-only single-writer prototype restriction.
+- **Documentation-only evidence**: no executed tests, code audit, provider CAS, independent security reviewer or mobile validation. P2.1 local-only synthetic work is conditionally allowed; release readiness remains none.
 
 ## QA matrix (minimum)
 

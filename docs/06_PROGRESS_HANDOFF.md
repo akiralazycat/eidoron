@@ -2,7 +2,7 @@
 
 - Created: **2026-10-31 JST**
 - Last updated: **2026-10-31 JST**
-- Current baseline: **P1 Security Protocol / P1.1–P1.4 documentation authored**
+- Current baseline: **P1.5 internal design review recorded; P2.1 synthetic local Rust scaffold next**
 - Implementation status: **no code written**
 - Foundation branch: `docs/foundation-master-plan-20261031` (merged)
 - Foundation PR: https://github.com/akiralazycat/eidoron/pull/1 — merged into main on 2026-10-31 JST
@@ -31,7 +31,8 @@
 | P1.2 | Library/FFI/device secure storage ADR | DONE (docs only) | 2026-10-31; ADR-0002 candidates and risks recorded; **no versions pinned, build or audit** |
 | P1.3 | Binary envelope v0 candidate and ADR-0003 | DONE (docs only) | 2026-10-31; `docs/09_ENVELOPE_FORMAT_V0.md`, ADR-0003; security review/interop vectors pending |
 | P1.4 | Security-oriented test/fuzz plan | DONE (docs only) | 2026-10-31; `docs/10_TEST_AND_FUZZ_PLAN.md`; planned VEC/PAR/CBOR/GRAPH/SYNC and fuzz targets; **not run** |
-| P1.5 | Security design review / release gate | TODO | **NEXT** — address BLK-01..10 before P2 |
+| P1.5 | Internal security design review and scope | DONE (docs only) | 2026-10-31; `docs/11_SECURITY_DESIGN_REVIEW.md`, ADR-0004. Not an external audit; release gate BLOCKED |
+| P2.1 | Synthetic local-only Rust workspace | TODO | **NEXT** — no real data, cloud or security claims |
 | P2 | Rust Vault implementation | NOT STARTED | Do not claim ready |
 | P3 | Safe cloud sync | NOT STARTED | Do not claim ready |
 | P4/P5 | iOS / Android native clients | NOT STARTED | Do not claim ready |
@@ -56,15 +57,28 @@
 | 2026-10-31 | OPEN-07 | P1.3 parameter ceilings and parser/metadata schema need security review | Resolve through P1.4 tests + P1.5 assessment |
 | 2026-10-31 | OPEN-08 | Conditional HEAD publication, rollback and root-rotation migration need implementation-level protocol | P3; no cross-provider atomicity promise |
 | 2026-10-31 | P1.4 | Security test/fuzz design documented | `docs/10_TEST_AND_FUZZ_PLAN.md`, BLK-01..10; no code/test run |
-| 2026-10-31 | OPEN-09 | HEAD freshness, conditional commit, historical descriptor risks and parser limits need P1.5 dispositions | Critical security/UX design gate |
+| 2026-10-31 | OPEN-09 | HEAD freshness, conditional commit, historical descriptor risks and parser limits need P1.5 dispositions | See P1.5 review; remote/performance evidence still OPEN |
+| 2026-10-31 | ADR-0004 | Only synthetic local P2 prototype conditionally allowed | BLK-01..10 dispositions, trusted checkpoint, non-revoking rewrap, cloud disabled |
+| 2026-10-31 | OPEN-10 | Provider-specific CAS, durable cloud password update, remote freshness | P3 blocker; not part of P2 local prototype |
+| 2026-10-31 | OPEN-11 | Independent cryptography/code review and executed primitive/fuzz/mobile tests | Release and security claims not authorized |
 
-## Immediate next task (P1.5)
+## Immediate next task (P2.1) — synthetic local-only scaffold
 
-**Goal:** review the actual Vault v0 protocol, tests and user claims against real security threats, with an explicit approve / revise / block disposition.
-- Inputs: `docs/09_ENVELOPE_FORMAT_V0.md`, `docs/10_TEST_AND_FUZZ_PLAN.md`, ADR-0003, `docs/08_SECURITY_TARGET.md` and ADR-0002.
-- Deliverable: `docs/11_SECURITY_DESIGN_REVIEW.md` with each BLK-01..10 disposition, approved threat model, architectural changes, unresolved P3/provider assumptions, evidence and sign-off limits. Amend candidate spec/ADR in a new Git commit if needed.
-- Exit: **no unresolved security-critical ambiguity** in candidate Vault v0. Test execution and mobile validation remain P2 gates; this is NOT permission to claim audited security or Shadow deniability.
-- Then plan P2 scoped core implementation, recording test/tool versions. No mandatory GitHub Actions.
+**Goal:** create a Rust workspace and a deterministic, synthetic local fixture harness without cloud or real secrets.
+- Inputs: amended `docs/09_ENVELOPE_FORMAT_V0.md`, P1.4 test plan, P1.5 review, ADR-0004.
+- Deliverables: pinned Cargo workspace/toolchain and `Cargo.lock`; crate skeletons for crypto/format/vault/provider-local; test-vector directory and nonproduction disclaimer.
+- Exit: build/smoke test evidence when runnable, dependency inventory and reproducible commands, failure notes if unable to run; updated handoff status.
+- Prohibited: real sensitive files, cloud credentials/provider, password-rewrap service, biometric unlock, hidden realm, multiwriter commits, claims of audited security.
+- Each task must update this ledger in the same PR, with dated decisions and evidence. GitHub Actions is optional; do not require a personal PC.
+
+## Session log — 2026-10-31 P1.5
+
+- Inspected latest main: P1.4 was already merged via PR #5. Did not duplicate it.
+- Created `docs/11_SECURITY_DESIGN_REVIEW.md` and `docs/decisions/0004-security-review-scope-and-safety.md` documenting internal dispositions BLK-01..10 and FIND-11..15.
+- Amended candidate v0 specification and P1.4 references; no silent rewrite of ADR-0003.
+- **Internal documentation review only**: no independent auditor, crypto test, source implementation, actual cloud/device validation or approved release.
+- Branch: `docs/p1-5-security-design-review-20261031`; confirm merge and commit evidence in Git history.
+- Next: P2.1 experimental offline/local Rust workspace.
 
 ## Session log — 2026-10-31 P1.1
 
