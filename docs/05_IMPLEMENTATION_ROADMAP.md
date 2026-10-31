@@ -24,8 +24,8 @@ P6/P7 are parallel research and MUST NOT hold up an honest, useful Vault release
 
 - P1.1: **DONE (documentation only, 2026-10-31)** — T0–T6 observer definitions, prospective security claims C01–C08, falsification matrix SEC/DEN, research games and failure semantics in [08_SECURITY_TARGET.md](08_SECURITY_TARGET.md). Not peer-reviewed, implemented or certified.
 - P1.2: **DONE (documentation only, 2026-10-31)** — ADR-0002 records RustCrypto candidate dependencies, UniFFI binding preference, OS device-key wrappers, secure-secret-handling/FFI risks, review and dependency policy. No crates integrated or security audit executed.
-- P1.3: **NEXT** — versioned on-disk envelope spec: canonical encoding, key hierarchy, authenticated fields, nonce discipline, limits and parse errors.
-- P1.4: Threat-oriented test plan for file corruption, swap, truncation, replay, metadata substitution, KDF denial-of-service.
+- P1.3: **DONE (documentation only, 2026-10-31)** — [Vault Envelope v0 candidate](09_ENVELOPE_FORMAT_V0.md) and [ADR-0003](decisions/0003-envelope-and-key-hierarchy.md): exact public binary offsets, protected CBOR metadata, random-root + password wrapper, per-object HKDF keys, AAD, HEAD, rewrap/rotation limitations and synthetic fixture contract. Not implemented or reviewed.
+- P1.4: **NEXT** — threat-oriented test plan for file corruption, swap, truncation, replay, metadata substitution, KDF denial-of-service, deterministic exact-byte vectors and parser fuzz.
 - P1.5: External/internal design review checklist and explicit release/claim policy.
 Exit: no unresolved decision that impacts encryption safety. Only then begin coding P2.
 
@@ -75,6 +75,12 @@ Exit: never silently lose a user's successfully committed data.
 - Source: [ADR-0002](decisions/0002-crypto-dependencies-ffi.md).
 - Recorded candidate crates and alternative evaluation, FFI contracts, Apple Keychain/Secure Enclave and Android Keystore/StrongBox separation, key lifecycle, dependency/release audit gates.
 - **Gate passed: document/decision capture only.** No installed dependencies, builds, platform benchmarks or audits. Do not begin P2 until P1.3–P1.5 are reviewed.
+
+## P1.3 binary format design evidence (2026-10-31)
+
+- Sources: [Vault Envelope v0](09_ENVELOPE_FORMAT_V0.md) and [ADR-0003](decisions/0003-envelope-and-key-hierarchy.md).
+- Recorded complete **candidate** byte offsets/sizes/endianness; public vs secret fields, key wrapping, deterministic metadata, authenticated references, nonce handling, rollback limitations and resource limits.
+- **Gate passed: documentation only.** No executable vectors, parser, AEAD implementation, external review, mobile benchmarks or production compatibility guarantee. P1.4/P1.5 remain mandatory before P2.
 
 ## QA matrix (minimum)
 

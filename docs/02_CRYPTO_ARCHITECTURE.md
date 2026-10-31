@@ -2,8 +2,8 @@
 
 - Created / updated: 2026-10-31 JST
 - Status: design draft. **No cryptographic implementation, format or audit exists yet.**
-- Decision references: [ADR-0001](decisions/0001-foundation.md) and [ADR-0002](decisions/0002-crypto-dependencies-ffi.md)
-- P1.2 selected implementation **candidates** only; dependency versions, binary format and security properties remain unverified.
+- Decision references: [ADR-0001](decisions/0001-foundation.md) and [ADR-0002](decisions/0002-crypto-dependencies-ffi.md) and [ADR-0003](decisions/0003-envelope-and-key-hierarchy.md)
+- P1.2 recorded implementation **candidates**. P1.3 selected a **candidate (unreviewed) Vault v0 binary layout and derived per-object key schedule**; versions, software implementation and security properties remain unverified. See [09_ENVELOPE_FORMAT_V0.md](09_ENVELOPE_FORMAT_V0.md).
 
 ## 1. Candidate building blocks
 
@@ -12,36 +12,24 @@
 - Authenticated encryption: **XChaCha20-Poly1305** for independent chunks/metadata with fresh 192-bit random nonces; vetted library, not handwritten primitives.
 - For large sequential streams, evaluate libsodium **secretstream_xchacha20poly1305** but do not mix formats without a carefully specified versioned envelope.
 - Device RNG: OS cryptographically secure entropy provider; fail closed on errors. No custom PRNG.
-- File encryption keys: random 256-bit keys wrapped under a namespace key, or per-object keys derived by a reviewed scheme; choose exactly one before implementation. Unique cryptographic separation for index vs data vs wrapping keys.
+- Object encryption keys: **P1.3 candidate decision = HKDF-derived per-object 256-bit keys** from a random RootSecret and random object ID. This replaces the earlier undecided random per-file vs derived key alternatives for *Vault v0 only*. Review required before coding. Unique cryptographic separation for index vs data vs wrapping keys.
 - Optional future sharing: X25519-based envelope scheme only after separate protocol/security review; not part of v1.
 
 Implementation preference recorded 2026-10-31: RustCrypto `chacha20poly1305` / `argon2` / `hkdf` + `sha2`, `secrecy` / `zeroize`, OS CSPRNG, and Mozilla UniFFI Swift/Kotlin bindings. See [ADR-0002](decisions/0002-crypto-dependencies-ffi.md). These are **design choices**, not installed or security-audited dependencies; final versions and APIs will be pinned at implementation. No package is secure merely due to past audits.
 
 ## 2. Candidate key tree (conceptual)
 
-Passphrase + vault-level public salt -> Argon2id root secret -> HKDF(domain-separated):
-  * namespace/index encryption key
-  * file-key wrapping key
-  * locator/search key
-  * context verification key (if needed and non-oracular)
+P1.3 candidate Vault v0: passphrase UTF-8 + random 16-byte KDF salt -> Argon2id raw 32-byte key -> HKDF(password-wrap context) -> password wrapping key -> authenticated encryption of a separate random 32-byte RootSecret. ObjectKey = HKDF(RootSecret, vault ID and random 32-byte object ID). Full byte schedule, AAD and protocol constraints: [09_ENVELOPE_FORMAT_V0.md](09_ENVELOPE_FORMAT_V0.md). **Hidden-space locator/search keys are not part of v0 and remain P6 research.**
 
 Every unlock path must have indistinguishable failure shape where reasonable. Avoid explicit hidden-slot identifiers, plaintext realm counts or a different visible KDF record for each hidden password. **A single shared salt does not itself solve key discovery or deny hidden namespace existence.** Research protocol required.
 
 Do not put actual master keys or real sample credentials into test fixtures. Document passphrase changes, key rotation, KDF version migration and recovery as separate operations. Recovery that stores a universal bypass key threatens denial properties.
 
-## 3. File format proposal
+## 3. Candidate Vault v0 format (P1.3)
 
-Versioned, canonical binary encoding (e.g., compact CBOR with validated deterministic encoding or an explicitly described binary format). Prototype format layout:
+The detailed proposed binary format is defined in [09_ENVELOPE_FORMAT_V0.md](09_ENVELOPE_FORMAT_V0.md): **136-byte public wrapped-root header**, **88-byte public immutable object prefix + AEAD payload**, **66-byte untrusted HEAD**, deterministic RFC 8949 CBOR for authenticated commit, directory and file metadata, and a derived per-object key. Chunk body sizes are capped; public ciphertext sizes and upload metadata are NOT hidden. No padding, secret namespace or ORAM is claimed in v0.
 
-- `opaque object ID` (transport-visible; may leak relationships if reused);
-- `versioned generic envelope` (no flag identifying hidden content);
-- `nonce`;
-- `ciphertext and AEAD tag`;
-- `padding` to the fixed cell class when applicable.
-
-Authenticated Additional Data must bind protocol version, object identity, content kind, chunk ordinal, logical parent and generation **without exposing sensitive metadata in plaintext**; if public AAD is needed, only nonsensitive fields may be public. Use an explicit canonical encoding and reject all ambiguity. Do not re-encrypt with same key+nonce. Mutating immutable objects creates new IDs and ciphertexts.
-
-File chunk sizing (e.g., 256 KiB / 1 MiB), padding sizes, fixed/variable object lengths, index B-tree vs append-only log and encrypted manifest design remain benchmark/attack-model decisions, not adopted constants.
+The format is **candidate for P1.4/P1.5 security review**, not frozen; altering bytes/suites requires updating ADR, test vectors and any future migration policy.
 
 ## 4. Anti-rollback and tampering
 
