@@ -151,9 +151,17 @@ On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked 
 
 On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (39 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0.
 
+## Sync-folder checkpoint (2026-10-31)
+
+The product vault is a local directory. `classify_heads` reports forks and does not drop a head. `TempDirStore` publishes only 64-character hex names, writes through a temp file plus `sync_all` and rename, and removes `.eidoron-tmp-` files when the store is created. Conflict-copy names are not objects. `ConditionalHead` is an optional future backend.
+
+Tested crash-related behavior: leftover temp names are removed; a temp file is not returned by `get`; a successful put leaves the full bytes in the hex file. Durability across power loss is not tested and not claimed.
+
+On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (46 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0.
+
 ## Next bounded work unit
 
-Record the eight provider experiments before adding R2 or S3 code. Remote rewrap, biometrics, and a second Shadow password stay out. Crash-safe directory writes are still untested.
+Do not add a cloud account or SDK. Remote rewrap, biometrics, and a Shadow password stay out. Further crash claims need a fault-injection test that does not exist yet.
 
 ## Security / release state
 

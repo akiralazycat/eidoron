@@ -13,7 +13,7 @@ Interfaces:
 - LocalCache: encryption at rest, explicit eviction and provenance.
 - ProviderCapability: whether versioning/ETag/atomic rename/listing/locking is available.
 
-Begin with local-folder provider for fault injection, then one S3-compatible adapter (Cloudflare R2 or AWS S3) after the conditional-write records in [13_S3_CONDITIONAL_HEAD.md](13_S3_CONDITIONAL_HEAD.md). WebDAV and consumer-drive providers stay later. Do not promise uniform background sync.
+The shipping storage target is the local sync folder only. The user runs Google Drive, Dropbox, or another folder sync outside the app. The app reads and writes that directory and does not call a vendor API. S3-compatible conditional writes remain an optional later backend described in [13_S3_CONDITIONAL_HEAD.md](13_S3_CONDITIONAL_HEAD.md). Do not promise that the sync tool's conflict copies are a merge.
 
 ## 2. Sync protocol invariants
 

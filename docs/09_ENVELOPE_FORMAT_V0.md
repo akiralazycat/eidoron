@@ -157,7 +157,13 @@ The following maps are *complete* v0 proposals (integer keys appear in ascending
 
 ## 5. Mutable untrusted HEAD pointer (66 bytes)
 
-The provider stores exactly one `vault.head` pointer for the current committed root. Its bytes are *not themselves secret or a freshness anchor*, and its update must use a proven conditional write / atomic transaction model in P3.
+**Decision (2026-10-31, owner, product shape):** Eidoron is a consumer application in the Cryptomator mold. The vault is a directory on local disk. The user points their own sync tool (Google Drive, Dropbox, or another folder sync) at that directory. The application does not call those vendors' APIs and does not hold their credentials.
+
+That directory has **no single HEAD file**. Each device appends immutable commit objects under opaque 64-character hex names. Two devices can both commit from the same parent before either sees the other's file. The result is two heads. Both are kept and shown to the user as a conflict. The application must not delete one head or treat the other as the only history. A sync tool may also drop a sibling such as `name (1)` or `name (conflicted copy)`. Those names are not object ids. They are not read as objects and they are not deleted by the store.
+
+A single `vault.head` plus `If-Match` remains an optional design for a future backend that speaks a cloud API. It is not the primary format. See [13_S3_CONDITIONAL_HEAD.md](13_S3_CONDITIONAL_HEAD.md).
+
+The bytes below describe that optional pointer. They are not required in the sync-folder vault.
 
 | Byte range | Field | Size | Value |
 |---|---|---:|---|
@@ -171,7 +177,7 @@ Read sequence: parse HEAD under strict bounds → find object by `commit_root_ob
 
 Write proposal: stage all immutable objects and verify successful remote persistence → publish HEAD with conditional write / compare-and-swap against the previously observed version → on CAS failure preserve both edits, fetch/verify competing roots and resolve or produce conflict revisions. P3 MUST define exact provider consistency semantics and visibility/durability; this v0 document does **not** claim that all providers have safe CAS.
 
-**Decision (2026-10-31, owner):** the first cloud family is S3-compatible storage with conditional writes. The candidates to measure are Cloudflare R2 and AWS S3. The in-memory trait uses `If-None-Match: *` to create and `If-Match` to replace. No live provider is trusted until the experiment records in [13_S3_CONDITIONAL_HEAD.md](13_S3_CONDITIONAL_HEAD.md) exist. This repository does not store credentials and does not call a network API for HEAD.
+**Decision (2026-10-31, owner, superseded for the product path):** an earlier note chose S3-compatible conditional writes as the first cloud. The product path no longer calls a cloud API. `ConditionalHead` remains optional code for a later backend. The sync-folder vault detects forks in the set of commit objects instead of publishing one HEAD.
 
 ## 6. Validation order and error taxonomy
 
