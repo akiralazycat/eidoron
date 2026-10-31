@@ -32,7 +32,7 @@ Exit for synthetic P2 prototype: review must define a narrow local-only boundary
 ## P2 — exact work packages
 
 - P2.1: **DONE as a verified synthetic scaffold (2026-10-31)** — five dependency-free Rust crates, pinned `rust-toolchain.toml` (1.99.1), Cargo-generated path-only `Cargo.lock`, untrusted public format inspector, memory-only store, fail-closed crypto/vault stubs. `cargo fmt --check`, `cargo test` (10 unit tests) and `cargo clippy -D warnings` executed on rustc 1.99.1. Cryptography is still absent. See [P2 implementation ledger](12_P2_IMPLEMENTATION.md) and [development plan](PLAN.md).
-- P2.2: **PARTIAL (2026-10-31)** — pinned RustCrypto crates, three published primitive vectors, and the synthetic v0 key schedule (`RawPwdKey`, `WrapKey`, `ObjectKey`, wrapped-root failure tests). Expected schedule bytes come from `crates/test-vectors/scripts/key_schedule_kat.py`. `encrypt_authenticated` still returns `NotImplemented`. See [PLAN.md](PLAN.md).
+- P2.2: **PARTIAL (2026-10-31)** — pinned RustCrypto crates, primitive vectors, the synthetic key schedule, and object AEAD (`encrypt_authenticated` seals `kind || schema || payload`; OS nonce in release, fixed nonce only in crate tests). Expected object ciphertext comes from `crates/test-vectors/scripts/object_aead_kat.py`. `status()` is still `NotImplemented`. See [PLAN.md](PLAN.md).
 - P2.3: stream/chunk AEAD implementation, length limits, strict error model and zeroization attempts.
 - P2.4: encrypted tree/index with object↔parent↔generation authenticated bindings.
 - P2.5: local provider, atomic persistence, safe imports and verified exports.

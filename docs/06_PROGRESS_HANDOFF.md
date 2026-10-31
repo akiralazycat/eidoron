@@ -2,8 +2,8 @@
 
 - Created: **2026-10-31 JST**
 - Last updated: **2026-10-31 JST**
-- Current baseline: **P2.2 M2 synthetic key schedule passes; vault object encryption API still NotImplemented**
-- Implementation status: **RawPwdKey, WrapKey and ObjectKey derived; 20 unit tests pass; NO VAULT OBJECT ENCRYPTION**
+- Current baseline: **M4 object AEAD passes; vault session status is still NotImplemented**
+- Implementation status: **object bodies seal and open; 24 unit tests pass; NO VAULT SESSION**
 - Foundation branch: `docs/foundation-master-plan-20261031` (merged)
 - Foundation PR: https://github.com/akiralazycat/eidoron/pull/1 — merged into main on 2026-10-31 JST
 - Foundation merge commit: `7835fd40e5608f5525db9dcb625b30ddff395e7e`
@@ -39,7 +39,7 @@
 | P1.5 | Internal security design review and scope | DONE (docs only) | 2026-10-31; `docs/11_SECURITY_DESIGN_REVIEW.md`, ADR-0004. Not an external audit; release gate BLOCKED |
 | P2.1 | Synthetic local-only Rust workspace | DONE (scaffold verified, no crypto) | rustc 1.99.1 fmt/test/clippy recorded in `docs/12_P2_IMPLEMENTATION.md` |
 | P2.1-V | Verify lockfile, fmt, test, clippy on actual Rust | DONE | 2026-10-31: rustc 1.99.1 (`58cf8f9c3`, 2026-10-13). fmt check, 10 unit tests, clippy `-D warnings`, Cargo-generated path-only lockfile. Next tasks in `docs/PLAN.md` |
-| P2.2 | Known-answer crypto vectors and suite evaluation | PARTIAL | M1 and M2 done 2026-10-31. **NEXT** is M4 object AEAD. `encrypt_authenticated` remains `NotImplemented`. See `docs/PLAN.md` |
+| P2.2 | Known-answer crypto vectors and suite evaluation | PARTIAL | M1, M2 and M4 done 2026-10-31. **NEXT** is M5 commit-shape checks. `status()` remains `NotImplemented`. See `docs/PLAN.md` |
 | P2 | Rust Vault implementation | NOT STARTED | Do not claim ready |
 | P3 | Safe cloud sync | NOT STARTED | Do not claim ready |
 | P4/P5 | iOS / Android native clients | NOT STARTED | Do not claim ready |
@@ -73,12 +73,24 @@
 | 2026-10-31 | P2.1-V | Execute the fmt/test/clippy gate and replace the hand-written lockfile | rustfmt was the failing check; compiler accepted the sources. Regenerated path-only `Cargo.lock`. 10 unit tests pass. Cryptography still absent |
 | 2026-10-31 | P2.2-M1 | Pin RustCrypto and check three published vectors | `argon2` 0.6.0, `hkdf` 0.13.0, `sha2` 0.11.1, `chacha20poly1305` 0.11.0, `zeroize` 1.9.1. Expected bytes transcribed from RFC 9106 §5.3, RFC 5869 A.1 and draft-irtf-cfrg-xchacha-03 A.3.1. Vault encrypt API unchanged |
 | 2026-10-31 | P2.2-M2 | Derive RawPwdKey, WrapKey and ObjectKey for one synthetic vector | Expected bytes from `crates/test-vectors/scripts/key_schedule_kat.py` (argon2-cffi 25.1.0, Python hmac HKDF, PyNaCl 1.6.2). Wrong passphrase, flipped AAD and flipped tag share `Unavailable`. `encrypt_authenticated` unchanged |
+| 2026-10-31 | M4 | Seal object bodies with XChaCha20-Poly1305 under ObjectKey | Expected ciphertext from `crates/test-vectors/scripts/object_aead_kat.py` (PyNaCl 1.6.2). Every release seal draws a fresh 24-byte nonce from `getrandom` 0.4.3. Fixed nonce is `cfg(test)` only. Wrong key, AAD/ciphertext/tag flips and truncation share `Unavailable`. Crypto does not return a previous ciphertext for a repeated plaintext |
+| 2026-10-31 | M4-nonce | Fresh OS nonce on every object seal | Owner decision on PR #11: identical plaintext must not reuse or echo the previous nonce/ciphertext, because that reveals plaintext equality. Idempotency is a storage concern keyed by object_id and content hash |
 
-## Immediate next task (M4) — object AEAD
+## Immediate next task (M5) — commit predecessor check
 
-**Goal:** encrypt one object body as `kind || schema || payload`, with the length limits in `docs/PLAN.md` item 15. Keep a test-supplied nonce separate from the OS CSPRNG nonce.
-- `encrypt_authenticated` stays `NotImplemented` until that object path has known-answer and failure tests.
+**Goal:** given a decrypted commit body, accept kind `0x01` and generation 0 only when the predecessor is empty. Do not add a CBOR decoder in that change.
 - Explicit scope restrictions: no cloud, real user data, native secrets, Shadow/Specter, production security claims; no mandatory GitHub Actions or user's PC.
+
+## Session log — 2026-10-31 M4 object AEAD
+
+- Started from main at `66af934` (PR #10 merged).
+- `encrypt_authenticated` seals `kind || schema || payload` under `ObjectKey` with XChaCha20-Poly1305. Plaintext length must be 2..=1,048,576 before AEAD. Ciphertext length must be 18..=1,048,592.
+- The release path fills a 24-byte nonce with `getrandom` 0.4.3 (`getrandom::fill`). `seal_object_with_nonce` is `#[cfg(test)]` and is absent from the library that dependents link.
+- Owner decision, same day: every `encrypt_authenticated` call draws a fresh 24-byte OS nonce. Repeating a plaintext produces a different nonce and ciphertext, and both open to that plaintext. The cipher does not compare a previous ciphertext. `CryptoError::Conflict` was removed. Idempotency stays with storage, keyed by object id and content hash. See the decision note in `docs/09_ENVELOPE_FORMAT_V0.md`.
+- Wrong key, flipped AAD, flipped ciphertext, flipped tag, and truncation all return `Unavailable` with display `unavailable`. The plaintext buffer is wiped when authentication fails.
+- Expected ciphertext is in `crates/test-vectors/src/object_aead.rs`, printed by `scripts/object_aead_kat.py` (PyNaCl 1.6.2) from the M2 `OBJECT_KEY` bytes. Plaintext is kind `0x04`, schema `0x00`, payload `synthetic`. Nonce is 24 bytes of `0x66`.
+- `status()` remains `NotImplemented`. Key `Drop` still zeroizes and is documented as best-effort.
+- `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0 on rustc 1.99.1. After the fresh-nonce decision, the suite is 23 unit tests.
 
 ## Session log — 2026-10-31 P2.2 M2 key schedule
 

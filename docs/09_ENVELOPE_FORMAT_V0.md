@@ -89,7 +89,9 @@ Provider path is a lower-case hex encoding of the **32-byte object_id** (64 char
 
 `2 ≤ plaintext_len ≤ 1,048,576` bytes; `18 ≤ ciphertext_len ≤ 1,048,592`. Every encrypted body has the kind+schema prefix; the parser MUST reject a 1-byte body. Hard cap before allocation; integer overflow, surplus bytes, mismatched declared sizes or malformed prefix rejected. No compression in v0, avoiding decompression-bomb handling and variable compression-state ambiguity.
 
-Each object is **immutable**: modification creates a new random ID, freshly derived object key and fresh random nonce; never overwrite an object at an existing ID. A retry may resend *identical ciphertext bytes* of a previously prepared immutable object, but MUST NOT re-encrypt new plaintext under the same ID/nonce.
+Each object is **immutable**: modification creates a new random ID, freshly derived object key and fresh random nonce; never overwrite an object at an existing ID. A storage retry may resend the *already sealed* ciphertext bytes of a previously prepared immutable object. It MUST NOT ask the cipher to encrypt new plaintext under the same ID and nonce.
+
+**Decision (2026-10-31, owner, recorded while PR #11 was open):** the cipher MUST draw a fresh 24-byte OS CSPRNG nonce on every seal, including when the plaintext bytes match an earlier seal. Identical plaintexts therefore yield different ciphertexts. Returning a previous nonce and ciphertext for a repeated plaintext reveals plaintext equality and is forbidden. The cipher MUST NOT compare or decrypt a previous ciphertext in order to accept or reject a new seal. Idempotency, if required, belongs to the storage layer and is keyed by `object_id` together with a content hash of the plaintext. It is not decided by ciphertext equality.
 
 ### Authenticated inner object kinds
 

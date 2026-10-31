@@ -14,11 +14,11 @@ Set up a reproducible local-only Rust workspace with **untrusted public format s
 
 | Crate | Responsibility | Implemented P2.1 | NOT implemented |
 |---|---|---|---|
-| `eidoron-crypto` | Cryptographic boundary | Fail-closed vault API; published primitive KATs; synthetic RawPwdKey, WrapKey, ObjectKey and wrapped-root open failures | Object AEAD and a full vault session |
+| `eidoron-crypto` | Cryptographic boundary | Primitive KATs; key schedule; object AEAD under ObjectKey. `status()` is still NotImplemented | Vault session, import, unlock |
 | `eidoron-format` | Public byte parsing | Fixed lengths, magic/version/suite/resource checks, only `Untrusted*` types | AEAD verification, CBOR schemas, full graph integrity |
 | `eidoron-provider-local` | Synthetic local object storage | Memory-only HashMap, immutable create & identical retry | Durable filesystem, crashes, cloud provider, CAS, multi-device |
 | `eidoron-vault` | Session/vault integration | Explicitly unavailable operations | Real vault creation, import, unlock, export, recovery |
-| `eidoron-test-vectors` | Synthetic deterministic test harness | Unauthenticated shapes, rejection matrix, and key-schedule constants from `scripts/key_schedule_kat.py` | Further protocol fixtures |
+| `eidoron-test-vectors` | Synthetic deterministic test harness | Shape checks, key-schedule constants, and one object-AEAD ciphertext from `scripts/object_aead_kat.py` | Commit-graph fixtures |
 
 P2.1 had no external crates. P2.2 M1 added the five pinned RustCrypto crates listed in the checkpoint below; UniFFI is still absent. The P2.1 lockfile was path-only. The current `Cargo.lock` was regenerated with `cargo generate-lockfile` after those dependencies were added.
 
@@ -105,12 +105,24 @@ Wrong passphrase, a flipped AAD bit and a flipped tag bit all return `CryptoErro
 
 On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (20 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0.
 
+## M4 checkpoint (2026-10-31)
+
+`encrypt_authenticated` seals `kind || schema || payload` with XChaCha20-Poly1305 under `ObjectKey`. Plaintext must be 2..=1,048,576 bytes before AEAD runs. The release nonce is 24 bytes from `getrandom` 0.4.3. `seal_object_with_nonce` exists only in `cfg(test)`.
+
+The known-answer ciphertext is the output of `crates/test-vectors/scripts/object_aead_kat.py` (PyNaCl 1.6.2) and is stored in `crates/test-vectors/src/object_aead.rs`. Wrong key, AAD, ciphertext, and tag mutations, and truncated ciphertext, all return `Unavailable`.
+
+**Nonce decision (2026-10-31):** every release seal draws a new 24-byte OS nonce. The cipher does not echo a previous nonce and ciphertext when the plaintext is repeated, and it does not reject a second plaintext by comparing ciphertexts. Storage idempotency, if added, is keyed by object id and a plaintext content hash. See [09_ENVELOPE_FORMAT_V0.md](09_ENVELOPE_FORMAT_V0.md).
+
+`status()` remains `NotImplemented`. Key `Drop` zeroizes and is documented as best-effort.
+
+On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (23 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0.
+
 ## Next bounded work unit
 
-Next is **M4** in [PLAN.md](PLAN.md): object AEAD for `kind || schema || payload`, with a test nonce kept separate from the OS CSPRNG. `encrypt_authenticated` stays `NotImplemented` until that gate passes. Real files stay out of the tree.
+Next is **M5** in [PLAN.md](PLAN.md): a decrypted commit of kind `0x01` and generation 0 must have an empty predecessor. No CBOR decoder in that change. Real files stay out of the tree.
 
 ## Security / release state
 
-The repository is public. Never check in real credentials, signing keys, user archives, personal backup files or private test samples. Primitive and key-schedule code runs only on synthetic vectors. No confidential user files should be entrusted to this code.
+The repository is public. Never check in real credentials, signing keys, user archives, personal backup files or private test samples. Primitive, key-schedule, and object-AEAD code runs only on synthetic vectors. No confidential user files should be entrusted to this code.
 
 No production release, provider sync or plausible-deniability guarantee is authorized. Date, PR numbers, executed checks, security deviations and next action must be updated in the progress ledger after each work unit.
