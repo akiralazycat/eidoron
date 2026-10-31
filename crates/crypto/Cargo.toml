@@ -13,5 +13,8 @@ sha2.workspace = true
 chacha20poly1305.workspace = true
 zeroize.workspace = true
 
+[dev-dependencies]
+eidoron-test-vectors = { path = "../test-vectors" }
+
 [lints]
 workspace = true
