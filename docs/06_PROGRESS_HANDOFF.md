@@ -11,6 +11,8 @@
 - P1.1 merge commit: `7a4a7d7fb9668d8d9fb6d98b2fc8d36e09aff374`
 - P1.2 dependency/FFI PR: https://github.com/akiralazycat/eidoron/pull/3 — merged on 2026-10-31 JST
 - P1.2 merge commit: `7dd3ba458838b50df24b9d3b9623ab8350e9cb0d`
+- P1.3 envelope-format PR: https://github.com/akiralazycat/eidoron/pull/4 — merged on 2026-10-31 JST
+- P1.3 merge commit: `fc1aad284349b25bde58888fcbe317b437b4a094`
 
 ## Current phase board
 
@@ -85,7 +87,7 @@
 - Resolved prior **Vault v0** key-choice ambiguity to a random RootSecret, password-derived wrapper and per-object HKDF key schedule. Shadow allocation and deniability still unresolved.
 - Updated README, crypto overview, roadmap, research references and dated progress/hand-off.
 - **No implementation, compiled tests, security audit or production-format freeze.**
-- Branch: `docs/p1-3-envelope-format-v0-20261031`; consult GitHub PR/merge history for final merge status.
+- Branch: `docs/p1-3-envelope-format-v0-20261031`; PR #4 merged into main (squash), 2026-10-31 JST.
 - Next: P1.4 test/fuzz plan, then P1.5 review before P2.
 
 ## Handoff recipe (another AI, mobile or desktop)
