@@ -19,8 +19,8 @@ Eidoron は、端末側で暗号化してからクラウドへ同期する、プ
 
 - Phase 0 / Foundation documentation — **completed (2026-10-31)**
 - Phase 1 / Threat-model and crypto protocol review — **P1.1–P1.5 documents and internal review recorded; implementation/independent audit unverified**
-- Rust code — **genesis commit predecessor check passes on rustc 1.99.1; vault sessions, sync and deniability are NOT implemented**
-- Phase 2 / Rust Vault — **M5 checks kind 0x01 generation 0 for a null predecessor; no CBOR decoder; `status()` is still NotImplemented**
+- Rust code — **directory-name checks pass on rustc 1.99.1; vault sessions, sync and deniability are NOT implemented**
+- Phase 2 / Rust Vault — **M5.21 rejects empty names, `/`, NUL, and the whole names `.` and `..`; NFC is not checked; `status()` is still NotImplemented**
 - Production readiness — **none**
 
 ## Documentation index
@@ -44,7 +44,7 @@ Eidoron は、端末側で暗号化してからクラウドへ同期する、プ
 - [P1.5 scope and security restrictions — ADR-0004](docs/decisions/0004-security-review-scope-and-safety.md)
 - [Research and validation references](docs/07_RESEARCH_VALIDATION.md)
 
-**Next work unit:** M5 item 21 — reject empty directory names and names that are `/`, `.`, `..`, or contain NUL, with no CBOR and no NFC check yet. Task order: [docs/PLAN.md](docs/PLAN.md).
+**Next work unit:** M5 item 22 — reject a chunk whose `file_id` or ordinal differs from the caller's expectation. No store walk. Task order: [docs/PLAN.md](docs/PLAN.md).
 
 License: [MIT](LICENSE). An open-source license is not a security certification.
 

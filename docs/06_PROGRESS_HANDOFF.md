@@ -2,8 +2,8 @@
 
 - Created: **2026-10-31 JST**
 - Last updated: **2026-10-31 JST**
-- Current baseline: **M5 genesis predecessor check passes; vault session status is still NotImplemented**
-- Implementation status: **one commit rule on decrypted bytes; 25 unit tests pass; NO VAULT SESSION, NO CBOR DECODER**
+- Current baseline: **M5.21 directory-name check passes; vault session status is still NotImplemented**
+- Implementation status: **name rules without NFC or CBOR; 28 unit tests pass; NO VAULT SESSION**
 - Foundation branch: `docs/foundation-master-plan-20261031` (merged)
 - Foundation PR: https://github.com/akiralazycat/eidoron/pull/1 — merged into main on 2026-10-31 JST
 - Foundation merge commit: `7835fd40e5608f5525db9dcb625b30ddff395e7e`
@@ -39,7 +39,7 @@
 | P1.5 | Internal security design review and scope | DONE (docs only) | 2026-10-31; `docs/11_SECURITY_DESIGN_REVIEW.md`, ADR-0004. Not an external audit; release gate BLOCKED |
 | P2.1 | Synthetic local-only Rust workspace | DONE (scaffold verified, no crypto) | rustc 1.99.1 fmt/test/clippy recorded in `docs/12_P2_IMPLEMENTATION.md` |
 | P2.1-V | Verify lockfile, fmt, test, clippy on actual Rust | DONE | 2026-10-31: rustc 1.99.1 (`58cf8f9c3`, 2026-10-13). fmt check, 10 unit tests, clippy `-D warnings`, Cargo-generated path-only lockfile. Next tasks in `docs/PLAN.md` |
-| P2.2 | Known-answer crypto vectors and suite evaluation | PARTIAL | M1, M2, M4 and M5.20 done 2026-10-31. **NEXT** is M5.21 directory-name rejection. `status()` remains `NotImplemented`. See `docs/PLAN.md` |
+| P2.2 | Known-answer crypto vectors and suite evaluation | PARTIAL | M1, M2, M4, M5.20 and M5.21 done 2026-10-31. **NEXT** is M5.22 chunk file_id/ordinal. `status()` remains `NotImplemented`. See `docs/PLAN.md` |
 | P2 | Rust Vault implementation | NOT STARTED | Do not claim ready |
 | P3 | Safe cloud sync | NOT STARTED | Do not claim ready |
 | P4/P5 | iOS / Android native clients | NOT STARTED | Do not claim ready |
@@ -77,11 +77,20 @@
 | 2026-10-31 | M4-nonce | Fresh OS nonce on every object seal | Owner decision on PR #11: identical plaintext must not reuse or echo the previous nonce/ciphertext, because that reveals plaintext equality. Idempotency is a storage concern |
 | 2026-10-31 | M5-hash | Storage idempotency hash must be keyed or encrypted | Owner decision: HMAC, keyed BLAKE, or an HKDF-derived vault key. A plain hash of plaintext must not be stored or used as an id |
 | 2026-10-31 | M5.20 | Genesis commit predecessor check | Decrypted body only. Kind 0x01, generation 0, null prior. No general CBOR decoder. Fixtures from `scripts/genesis_commit_kat.py` |
+| 2026-10-31 | M5.21 | Directory name rejection without NFC | Empty, longer than 255 UTF-8 bytes, `/`, U+0000, and the whole names `.` and `..`. `file.txt` and non-NFC text are accepted |
 
-## Immediate next task (M5.21) — directory name rejection
+## Immediate next task (M5.22) — chunk identity check
 
-**Goal:** reject directory names that are empty, `/`, `.`, `..`, or contain NUL, as a pure function. No CBOR decoder and no NFC check in that change.
+**Goal:** a pure function that rejects a chunk when its `file_id` or ordinal differs from the caller's expectation. Do not walk a store.
 - Explicit scope restrictions: no cloud, real user data, native secrets, Shadow/Specter, production security claims; no mandatory GitHub Actions or user's PC.
+
+## Session log — 2026-10-31 M5.21 directory names
+
+- Started from main at `05019e1` (PR #12 merged).
+- `eidoron_vault::check_directory_name` takes a `&str` and does not parse CBOR. Empty names, names longer than 255 UTF-8 bytes, names containing `/` or U+0000, and the whole names `.` and `..` are rejected. The error text does not include the name.
+- `file.txt`, `.hidden`, `...`, a trailing-space `..`, ASCII backslash, and both NFC `é` and NFD `e` + combining acute are accepted. Length is counted in UTF-8 bytes, so 253 `a` bytes plus `é` is 255 and accepted, and 254 `a` bytes plus `é` is rejected.
+- `import_encrypted` and `status()` remain `NotImplemented`.
+- `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (28 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0 on rustc 1.99.1.
 
 ## Session log — 2026-10-31 M5 genesis predecessor
 

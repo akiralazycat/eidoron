@@ -2,10 +2,14 @@
 //! Vault scaffold. Creation, unlock, import, and sync stay unavailable.
 //! [`check_genesis_predecessor`](crate::check_genesis_predecessor) applies one rule
 //! to an already decrypted commit body.
+//! [`check_directory_name`](crate::check_directory_name) rejects a few names and
+//! does not normalize Unicode.
 
 mod commit_check;
+mod directory_name;
 
 pub use commit_check::{CommitCheckError, GenesisPredecessor, check_genesis_predecessor};
+pub use directory_name::{DirectoryNameError, MAX_DIRECTORY_NAME_BYTES, check_directory_name};
 
 use eidoron_provider_local::MemoryStore;
 
