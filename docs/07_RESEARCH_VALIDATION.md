@@ -15,6 +15,18 @@
 
 - NIST SP 800-38D, Appendix D: authenticated decryption alone does not prevent replay; a trusted freshness mechanism is separate: https://nvlpubs.nist.gov/nistpubs/legacy/sp/nistspecialpublication800-38d.pdf
 
+## P1.2 library / platform sources (reviewed 2026-10-31)
+
+- RustCrypto XChaCha20: https://docs.rs/chacha20poly1305/latest/chacha20poly1305/
+- RustCrypto Argon2: https://docs.rs/argon2/latest/argon2/
+- RustCrypto HKDF: https://docs.rs/hkdf/latest/hkdf/
+- RustCrypto secrecy and zeroize: https://docs.rs/secrecy/latest/secrecy/ , https://docs.rs/zeroize/latest/zeroize/
+- Mozilla UniFFI: https://mozilla.github.io/uniffi-rs/
+- Apple Keychain / Secure Enclave: https://developer.apple.com/documentation/Security/protecting-keys-with-the-secure-enclave
+- Android Keystore: https://developer.android.com/privacy-and-security/keystore
+- cargo-deny: https://github.com/EmbarkStudios/cargo-deny
+- Detailed decisions, caveats and implementation gates: [ADR-0002](decisions/0002-crypto-dependencies-ffi.md).
+
 ## Deniable storage background
 
 - DataLair (PoPETs 2017), multi-snapshot adversary and write-only ORAM: https://crysp.petsymposium.org/popets/2017/popets-2017-0035.php

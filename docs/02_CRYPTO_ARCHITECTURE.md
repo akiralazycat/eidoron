@@ -2,7 +2,8 @@
 
 - Created / updated: 2026-10-31 JST
 - Status: design draft. **No cryptographic implementation, format or audit exists yet.**
-- Decision reference: [ADR-0001](decisions/0001-foundation.md)
+- Decision references: [ADR-0001](decisions/0001-foundation.md) and [ADR-0002](decisions/0002-crypto-dependencies-ffi.md)
+- P1.2 selected implementation **candidates** only; dependency versions, binary format and security properties remain unverified.
 
 ## 1. Candidate building blocks
 
@@ -14,7 +15,7 @@
 - File encryption keys: random 256-bit keys wrapped under a namespace key, or per-object keys derived by a reviewed scheme; choose exactly one before implementation. Unique cryptographic separation for index vs data vs wrapping keys.
 - Optional future sharing: X25519-based envelope scheme only after separate protocol/security review; not part of v1.
 
-Libraries are candidates until audit of Rust bindings, supply chain, platform build and memory handling.
+Implementation preference recorded 2026-10-31: RustCrypto `chacha20poly1305` / `argon2` / `hkdf` + `sha2`, `secrecy` / `zeroize`, OS CSPRNG, and Mozilla UniFFI Swift/Kotlin bindings. See [ADR-0002](decisions/0002-crypto-dependencies-ffi.md). These are **design choices**, not installed or security-audited dependencies; final versions and APIs will be pinned at implementation. No package is secure merely due to past audits.
 
 ## 2. Candidate key tree (conceptual)
 

@@ -23,8 +23,8 @@ P6/P7 are parallel research and MUST NOT hold up an honest, useful Vault release
 ## P1 — exact work packages
 
 - P1.1: **DONE (documentation only, 2026-10-31)** — T0–T6 observer definitions, prospective security claims C01–C08, falsification matrix SEC/DEN, research games and failure semantics in [08_SECURITY_TARGET.md](08_SECURITY_TARGET.md). Not peer-reviewed, implemented or certified.
-- P1.2: **NEXT** — ADR for crypto libraries, dependency audit policy, Rust FFI and mobile key storage.
-- P1.3: Versioned on-disk envelope spec: canonical encoding, key hierarchy, authenticated fields, nonce discipline, limits and parse errors.
+- P1.2: **DONE (documentation only, 2026-10-31)** — ADR-0002 records RustCrypto candidate dependencies, UniFFI binding preference, OS device-key wrappers, secure-secret-handling/FFI risks, review and dependency policy. No crates integrated or security audit executed.
+- P1.3: **NEXT** — versioned on-disk envelope spec: canonical encoding, key hierarchy, authenticated fields, nonce discipline, limits and parse errors.
 - P1.4: Threat-oriented test plan for file corruption, swap, truncation, replay, metadata substitution, KDF denial-of-service.
 - P1.5: External/internal design review checklist and explicit release/claim policy.
 Exit: no unresolved decision that impacts encryption safety. Only then begin coding P2.
@@ -69,6 +69,12 @@ Exit: never silently lose a user's successfully committed data.
 - Source: [08_SECURITY_TARGET.md](08_SECURITY_TARGET.md), with explicit asset/observer/assumption/falsifier mapping and nonclaims.
 - Gate passed: *document authoring only*. No runtime test or independent peer review was performed.
 - Remaining P1 design and review work (P1.2–P1.5) must pass before implementing P2.
+
+## P1.2 dependency and platform-design evidence (2026-10-31)
+
+- Source: [ADR-0002](decisions/0002-crypto-dependencies-ffi.md).
+- Recorded candidate crates and alternative evaluation, FFI contracts, Apple Keychain/Secure Enclave and Android Keystore/StrongBox separation, key lifecycle, dependency/release audit gates.
+- **Gate passed: document/decision capture only.** No installed dependencies, builds, platform benchmarks or audits. Do not begin P2 until P1.3–P1.5 are reviewed.
 
 ## QA matrix (minimum)
 

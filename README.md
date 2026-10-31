@@ -18,7 +18,7 @@ Eidoron は、端末側で暗号化してからクラウドへ同期する、プ
 ## Current status
 
 - Phase 0 / Foundation documentation — **completed (2026-10-31)**
-- Phase 1 / Threat-model and crypto protocol review — **in progress (P1.1 security target authored; implementation unverified)**
+- Phase 1 / Threat-model and crypto protocol review — **in progress (P1.1 security target and P1.2 dependency/FFI design recorded; implementation unverified)**
 - Application / encryption / sync code — **not implemented**
 - Production readiness — **none**
 
@@ -32,9 +32,10 @@ Eidoron は、端末側で暗号化してからクラウドへ同期する、プ
 - [Product and intelligence-inspired UX](docs/04_PRODUCT_UX.md)
 - [Implementation phases and acceptance gates](docs/05_IMPLEMENTATION_ROADMAP.md)
 - [Progress ledger and AI handoff](docs/06_PROGRESS_HANDOFF.md)
-- [Architecture decision record](docs/decisions/0001-foundation.md)
+- [Foundation architecture decision](docs/decisions/0001-foundation.md)
+- [Crypto dependencies, mobile FFI and device keys — ADR-0002](docs/decisions/0002-crypto-dependencies-ffi.md)
 - [Research and validation references](docs/07_RESEARCH_VALIDATION.md)
 
-**Next work unit:** P1.2 — choose Rust cryptography dependencies, FFI and device key lifecycle via ADR-0002. P1.3 will then specify the binary envelope; encryption or hidden-space code MUST wait for P1 security design review.
+**Next work unit:** P1.3 — specify a versioned binary envelope, authenticated context, key hierarchy, nonce rules, limits, migration and test-vector contract. P1.4 adversarial tests and P1.5 security design review must follow before P2 encryption implementation.
 
 License: [MIT](LICENSE). An open-source license is not a security certification.
