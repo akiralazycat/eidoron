@@ -27,7 +27,7 @@ pub use commit_check::{CommitCheckError, GenesisPredecessor, check_genesis_prede
 pub use commit_history::{HistoryError, HistoryStatus, HistoryView, LocalCommit, classify_heads};
 pub use directory_body::{ChildKind, DirectoryEntry};
 pub use directory_name::{DirectoryNameError, MAX_DIRECTORY_NAME_BYTES, check_directory_name};
-pub use session::{FileChunks, Session, VaultStatus, create_vault, open_vault};
+pub use session::{FileChunks, Session, VaultStatus, WaitingFile, create_vault, open_vault};
 
 use eidoron_provider_local::MemoryStore;
 

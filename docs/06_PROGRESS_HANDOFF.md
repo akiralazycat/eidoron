@@ -2,8 +2,8 @@
 
 - Created: **2026-10-31 JST**
 - Last updated: **2026-10-31 JST**
-- Current baseline: **missing chunk is Incomplete; streaming read verifies each chunk**
-- Implementation status: **58 unit tests pass; NO CLOUD API, NO CREDENTIALS; no automatic object deletion; crash claim limited to tested temp cleanup**
+- Current baseline: **forks stay visible with per-head waiting files; metadata leakage recorded, not padded**
+- Implementation status: **65 unit tests pass; NO CLOUD API, NO CREDENTIALS; no automatic object deletion; crash claim limited to tested temp cleanup**
 - Foundation branch: `docs/foundation-master-plan-20261031` (merged)
 - Foundation PR: https://github.com/akiralazycat/eidoron/pull/1 — merged into main on 2026-10-31 JST
 - Foundation merge commit: `7835fd40e5608f5525db9dcb625b30ddff395e7e`
@@ -92,16 +92,25 @@
 | 2026-11-01 | multi-chunk file | Split at 1,048,554 bytes; replace and unlink keep old objects | Empty file has zero chunks. `write_file` on an existing name is `DuplicateName`. No new ciphertext vector |
 | 2026-11-01 | #20 adopted | No automatic GC; unlink is one name; streaming hides unverified bytes | Future GC, if any, only objects unreachable from every head, never conflict copies. `delete_entry` is not recursive. Empty file stays zero chunks |
 | 2026-11-01 | chunk sync status | Missing chunk is `Incomplete` with the file name; tampered chunk is `Unavailable` | `read_file_chunks` yields a chunk only after AEAD and ordinal checks. No new ciphertext vector |
+| 2026-11-01 | status fork | `Conflict` always lists every head | Waiting files on any head are attached with that head id. `Incomplete` is a single head only |
+| 2026-11-01 | metadata | Sync-folder leakage note | [14_METADATA_LEAKAGE.md](14_METADATA_LEAKAGE.md). Names are 64 hex. Chunk file length is payload plus 126 bytes. Padding not implemented |
 
 ## Immediate next task — list one subdirectory
 
 **Do not** create a Google Drive, Dropbox, R2, or S3 account for this repository, and do not add a vendor SDK.
-- A missing chunk on the selected or sole head is `Incomplete` and names the file. A tampered chunk is `Unavailable`.
-- `read_file_chunks` returns bytes only after that chunk verifies. `read_file` returns the whole file or nothing.
-- Do not delete unreachable objects. `delete_entry` removes one name. Do not touch conflict copies.
-- The selected head stays in memory. Empty files have zero chunks.
+- A fork is `Conflict` even when a file is waiting on a chunk. Each waiting file carries its head id.
+- Do not pad chunks yet. The length leak is documented in [14_METADATA_LEAKAGE.md](14_METADATA_LEAKAGE.md) and pinned by a test.
+- Do not delete unreachable objects. Do not touch conflict copies.
 - Still out of v1: remote rewrap, biometrics, a Shadow password, a two-head content view, and any crash claim beyond the tested temp-file cleanup.
 - Explicit scope restrictions: no credentials in git, no real user data, no Shadow/Specter claim.
+
+## Session log — 2026-11-01 fork status and metadata leakage
+
+- Started from main at `6d83075` (PR #21 merged).
+- `VaultStatus::Conflict` now carries `heads` and `waiting`. A missing chunk on a forked vault stays a conflict, and each waiting name includes the head id. `Incomplete` is only the single-head case and also carries that head id.
+- Missing-chunk recovery, tampered chunks, truncated manifests, duplicated chunk ids, and reordered chunks are separate tests.
+- [14_METADATA_LEAKAGE.md](14_METADATA_LEAKAGE.md) lists names, lengths, timestamps, and write patterns a sync tool sees. Object names stay 64 hex and do not contain the plaintext name. Two equal payloads produce different chunk files. A chunk file is 126 bytes longer than its payload. Padding was not added.
+- `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (65 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0 on rustc 1.99.1.
 
 ## Session log — 2026-11-01 missing chunks and streaming reads
 

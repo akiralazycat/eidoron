@@ -35,7 +35,7 @@ Exit for synthetic P2 prototype: review must define a narrow local-only boundary
 - P2.2: **PARTIAL (2026-11-01)** — through multi-chunk files, explicit replace, missing-chunk `Incomplete`, and verified chunk streaming. No general CBOR decoder. `eidoron_crypto::status()` is still `NotImplemented`. See [PLAN.md](PLAN.md).
 - P2.3: stream/chunk AEAD implementation, length limits, strict error model and zeroization attempts.
 - P2.4: encrypted tree/index with object↔parent↔generation authenticated bindings.
-- P2.5: **PARTIAL (2026-11-01)** — local sync folder only. Files split at the chunk cap. A missing chunk is `Incomplete` with the file name. A tampered chunk is `Unavailable`. Chunk streaming releases bytes only after verification. Replace and unlink keep old objects. A live cloud client, a two-head content view, automatic deletion, and crash recovery beyond the tested temp cleanup are not claimed.
+- P2.5: **PARTIAL (2026-11-01)** — local sync folder only. A fork stays `Conflict` and can also list waiting files with head ids. Chunk length still reveals payload size; see [14_METADATA_LEAKAGE.md](14_METADATA_LEAKAGE.md). Padding is not implemented. A live cloud client, a two-head content view, automatic deletion, and crash recovery beyond the tested temp cleanup are not claimed.
 - P2.6: property/fuzz/mutation tests, recovery and benchmarking.
 Exit: cannot return unauthenticated plaintext; corruption detectable; recovery tested with no cloud.
 

@@ -2,7 +2,7 @@
 
 - Created / updated: **2026-10-31 JST**
 - Milestone: **P2.1 — synthetic local-only Rust workspace**
-- Status: **missing chunks are Incomplete; streaming reads verify each chunk (2026-11-01); not a production vault**
+- Status: **forks stay visible; metadata leakage recorded without padding (2026-11-01); not a production vault**
 - Governing decisions: [P1.5 review](11_SECURITY_DESIGN_REVIEW.md), [ADR-0004](decisions/0004-security-review-scope-and-safety.md)
 - Previous plans: [Roadmap](05_IMPLEMENTATION_ROADMAP.md) and [P1.4 test plan](10_TEST_AND_FUZZ_PLAN.md)
 
@@ -187,9 +187,15 @@ A sole head, or the selected head while forked, is `Incomplete` when a reachable
 
 On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (58 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0.
 
+## Fork status and metadata note (2026-11-01)
+
+`Conflict` lists every head and a `waiting` vector of `{ head, name }` for files whose descriptor or chunk is absent. `Incomplete` is not used while two heads exist. Missing, tampered, truncated, duplicated, and reordered chunk cases are separate tests. [14_METADATA_LEAKAGE.md](14_METADATA_LEAKAGE.md) records the sync-folder view. A test checks that object names are 64 lowercase hex and that a chunk file is 126 bytes longer than its payload. Equal plaintexts do not share chunk bytes. Padding is not implemented.
+
+On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (65 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0.
+
 ## Next bounded work unit
 
-List the entries of one subdirectory under the selected head. Do not delete unreachable objects, add a two-head content view, a cloud account, or an SDK. Remote rewrap, biometrics, and a Shadow password stay out of v1. Further crash claims need a fault-injection test that does not exist yet.
+List the entries of one subdirectory under the selected head. Do not pad, delete unreachable objects, add a two-head content view, a cloud account, or an SDK. Remote rewrap, biometrics, and a Shadow password stay out of v1. Further crash claims need a fault-injection test that does not exist yet.
 
 ## Security / release state
 

@@ -19,7 +19,7 @@ Eidoron は、端末側で暗号化してからクラウドへ同期する、プ
 
 - Phase 0 / Foundation documentation — **completed (2026-10-31)**
 - Phase 1 / Threat-model and crypto protocol review — **P1.1–P1.5 documents and internal review recorded; implementation/independent audit unverified**
-- Rust code — **a missing chunk is Incomplete with the file name; a tampered chunk is Unavailable. Reads yield a chunk only after it verifies. No cloud API is called**
+- Rust code — **a fork stays visible when a file is waiting on a chunk. Object names are random hex. Chunk length still tracks payload size. No cloud API is called**
 - Phase 2 / Rust Vault — **append only under `select_head`, which stays in memory. Empty files have zero chunks. `eidoron_crypto::status()` is still `NotImplemented`**
 - Production readiness — **none**
 
@@ -36,6 +36,7 @@ Eidoron は、端末側で暗号化してからクラウドへ同期する、プ
 - [Development plan after compiler verification](docs/PLAN.md)
 - [Storage, deniability research and sync](docs/03_STORAGE_SYNC.md)
 - [S3 conditional HEAD experiment plan](docs/13_S3_CONDITIONAL_HEAD.md)
+- [Metadata visible in a sync folder](docs/14_METADATA_LEAKAGE.md)
 - [Product and intelligence-inspired UX](docs/04_PRODUCT_UX.md)
 - [Implementation phases and acceptance gates](docs/05_IMPLEMENTATION_ROADMAP.md)
 - [Progress ledger and AI handoff](docs/06_PROGRESS_HANDOFF.md)
