@@ -4,6 +4,7 @@
 
 pub mod commit_genesis;
 pub mod content_id;
+pub mod directory_object;
 pub mod key_schedule;
 pub mod object_aead;
 

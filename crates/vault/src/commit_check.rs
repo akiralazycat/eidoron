@@ -102,9 +102,20 @@ pub fn read_commit_generation(decrypted: &[u8]) -> Result<u64, CommitCheckError>
     Ok(parse_commit_link(decrypted)?.generation)
 }
 
+/// Object id of the commit's root directory, map key 2.
+///
+/// A body that stops before key 2 is unreadable here. This does not open the
+/// directory object.
+pub fn read_commit_root(decrypted: &[u8]) -> Result<[u8; 32], CommitCheckError> {
+    parse_commit_link(decrypted)?
+        .root
+        .ok_or(CommitCheckError::Unreadable)
+}
+
 struct CommitLink {
     generation: u64,
     parent: Option<[u8; 32]>,
+    root: Option<[u8; 32]>,
 }
 
 fn parse_commit_link(decrypted: &[u8]) -> Result<CommitLink, CommitCheckError> {
@@ -142,7 +153,26 @@ fn parse_commit_link(decrypted: &[u8]) -> Result<CommitLink, CommitCheckError> {
         }
         (_, Prior::Bytes(_)) => return Err(CommitCheckError::Unreadable),
     };
-    Ok(CommitLink { generation, parent })
+    let root = if pairs >= 3 {
+        if cursor.uint()? != 2 {
+            return Err(CommitCheckError::Unreadable);
+        }
+        match cursor.prior()? {
+            Prior::Bytes(bytes) if bytes.len() == 32 => {
+                let mut id = [0u8; 32];
+                id.copy_from_slice(&bytes);
+                Some(id)
+            }
+            _ => return Err(CommitCheckError::Unreadable),
+        }
+    } else {
+        None
+    };
+    Ok(CommitLink {
+        generation,
+        parent,
+        root,
+    })
 }
 
 struct Cursor<'a> {
@@ -282,6 +312,7 @@ mod tests {
     fn parent_ids_match_the_same_fixtures() {
         assert_eq!(read_commit_parent(GENESIS_NULL), Ok(None));
         assert_eq!(read_commit_generation(GENESIS_NULL), Ok(0));
+        assert_eq!(read_commit_root(GENESIS_NULL), Ok([0x71; 32]));
         assert_eq!(read_commit_parent(LATER_WITH_PRIOR), Ok(Some([0x91; 32])));
         assert_eq!(read_commit_generation(LATER_WITH_PRIOR), Ok(1));
         assert_eq!(
