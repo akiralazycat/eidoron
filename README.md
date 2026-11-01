@@ -19,8 +19,8 @@ Eidoron は、端末側で暗号化してからクラウドへ同期する、プ
 
 - Phase 0 / Foundation documentation — **completed (2026-10-31)**
 - Phase 1 / Threat-model and crypto protocol review — **P1.1–P1.5 documents and internal review recorded; implementation/independent audit unverified**
-- Rust code — **a sync folder can be created and opened; a selected head can gain a directory and a small file. Forks stay visible. No cloud API is called**
-- Phase 2 / Rust Vault — **append only under `select_head`. `Session::status` reports Ok, Conflict, Incomplete, or Locked. `eidoron_crypto::status()` is still `NotImplemented`**
+- Rust code — **a selected head can store a directory and a multi-chunk file. Replace and unlink leave old objects on disk. No cloud API is called**
+- Phase 2 / Rust Vault — **append only under `select_head`, which stays in memory. `eidoron_crypto::status()` is still `NotImplemented`**
 - Production readiness — **none**
 
 ## Documentation index
@@ -45,7 +45,7 @@ Eidoron は、端末側で暗号化してからクラウドへ同期する、プ
 - [P1.5 scope and security restrictions — ADR-0004](docs/decisions/0004-security-review-scope-and-safety.md)
 - [Research and validation references](docs/07_RESEARCH_VALIDATION.md)
 
-**Next work unit:** an empty subdirectory that is a real object under the selected head. Do not add a two-head content view, a cloud account, or a vendor SDK. Open questions are listed in [docs/PLAN.md](docs/PLAN.md).
+**Next work unit:** list one subdirectory under the selected head. Do not delete unreachable objects, add a two-head content view, or add a cloud account. Open questions are listed in [docs/PLAN.md](docs/PLAN.md).
 
 License: [MIT](LICENSE). An open-source license is not a security certification.
 
