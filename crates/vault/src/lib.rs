@@ -3,8 +3,8 @@
 //!
 //! [`create_vault`](crate::create_vault) and [`open_vault`](crate::open_vault)
 //! write and read one local directory. [`Session::status`](crate::Session::status)
-//! reports one head, every conflicting head, a missing parent, or a locked
-//! session. [`PrototypeVault::import_encrypted`] stays unavailable.
+//! reports one head, every conflicting head, a missing parent or chunk, or a
+//! locked session. [`PrototypeVault::import_encrypted`] stays unavailable.
 //! `eidoron_crypto::status` is a separate scaffold flag and stays
 //! `NotImplemented`.
 //! [`check_genesis_predecessor`](crate::check_genesis_predecessor) applies one rule
@@ -27,7 +27,7 @@ pub use commit_check::{CommitCheckError, GenesisPredecessor, check_genesis_prede
 pub use commit_history::{HistoryError, HistoryStatus, HistoryView, LocalCommit, classify_heads};
 pub use directory_body::{ChildKind, DirectoryEntry};
 pub use directory_name::{DirectoryNameError, MAX_DIRECTORY_NAME_BYTES, check_directory_name};
-pub use session::{Session, VaultStatus, create_vault, open_vault};
+pub use session::{FileChunks, Session, VaultStatus, create_vault, open_vault};
 
 use eidoron_provider_local::MemoryStore;
 

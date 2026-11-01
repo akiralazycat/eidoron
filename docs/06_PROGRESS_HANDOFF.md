@@ -2,8 +2,8 @@
 
 - Created: **2026-10-31 JST**
 - Last updated: **2026-10-31 JST**
-- Current baseline: **multi-chunk files, explicit replace, unlink without deletion**
-- Implementation status: **58 unit tests pass; NO CLOUD API, NO CREDENTIALS; crash claim limited to tested temp cleanup**
+- Current baseline: **missing chunk is Incomplete; streaming read verifies each chunk**
+- Implementation status: **58 unit tests pass; NO CLOUD API, NO CREDENTIALS; no automatic object deletion; crash claim limited to tested temp cleanup**
 - Foundation branch: `docs/foundation-master-plan-20261031` (merged)
 - Foundation PR: https://github.com/akiralazycat/eidoron/pull/1 — merged into main on 2026-10-31 JST
 - Foundation merge commit: `7835fd40e5608f5525db9dcb625b30ddff395e7e`
@@ -39,7 +39,7 @@
 | P1.5 | Internal security design review and scope | DONE (docs only) | 2026-10-31; `docs/11_SECURITY_DESIGN_REVIEW.md`, ADR-0004. Not an external audit; release gate BLOCKED |
 | P2.1 | Synthetic local-only Rust workspace | DONE (scaffold verified, no crypto) | rustc 1.99.1 fmt/test/clippy recorded in `docs/12_P2_IMPLEMENTATION.md` |
 | P2.1-V | Verify lockfile, fmt, test, clippy on actual Rust | DONE | 2026-10-31: rustc 1.99.1 (`58cf8f9c3`, 2026-10-13). fmt check, 10 unit tests, clippy `-D warnings`, Cargo-generated path-only lockfile. Next tasks in `docs/PLAN.md` |
-| P2.2 | Known-answer crypto vectors and suite evaluation | PARTIAL | Through multi-chunk files and explicit replace on 2026-11-01. Live R2/S3, remote rewrap, biometrics, and Shadow passwords stay out of v1. See `docs/PLAN.md` |
+| P2.2 | Known-answer crypto vectors and suite evaluation | PARTIAL | Through missing-chunk status and verified streaming reads on 2026-11-01. Live R2/S3, remote rewrap, biometrics, and Shadow passwords stay out of v1. See `docs/PLAN.md` |
 | P2 | Rust Vault implementation | NOT STARTED | Do not claim ready |
 | P3 | Safe cloud sync | NOT STARTED | Do not claim ready |
 | P4/P5 | iOS / Android native clients | NOT STARTED | Do not claim ready |
@@ -89,17 +89,28 @@
 | 2026-10-31 | #18 adopted | Select a head before append; do not skip a failed open; no timing claim | Wrong-head append is `WrongHead`. A hex file that does not decrypt fails `status`. Equal running time is not claimed |
 | 2026-10-31 | directory under one head | NFC directory plus one chunk file | `list_directory` reads only the selected head. Oracle: `scripts/directory_kat.py`. No two-head content view |
 | 2026-11-01 | #19 adopted | Link only written objects; no silent overwrite; selection stays in memory | `append_directory` writes subdirectory objects. `write_file` on an existing name is `DuplicateName`. `select_head` does not change the folder |
-| 2026-11-01 | multi-chunk file | Split at 1,048,554 bytes; replace and unlink keep old objects | A missing chunk is `Unavailable` with no partial plaintext. A tampered chunk fails `status`. No new ciphertext vector |
+| 2026-11-01 | multi-chunk file | Split at 1,048,554 bytes; replace and unlink keep old objects | Empty file has zero chunks. `write_file` on an existing name is `DuplicateName`. No new ciphertext vector |
+| 2026-11-01 | #20 adopted | No automatic GC; unlink is one name; streaming hides unverified bytes | Future GC, if any, only objects unreachable from every head, never conflict copies. `delete_entry` is not recursive. Empty file stays zero chunks |
+| 2026-11-01 | chunk sync status | Missing chunk is `Incomplete` with the file name; tampered chunk is `Unavailable` | `read_file_chunks` yields a chunk only after AEAD and ordinal checks. No new ciphertext vector |
 
 ## Immediate next task — list one subdirectory
 
 **Do not** create a Google Drive, Dropbox, R2, or S3 account for this repository, and do not add a vendor SDK.
-- Append only after `select_head`, and only under that head. The selection is not stored in the folder.
-- `append_directory` writes empty subdirectory objects. Files are created by `write_file` or `replace_file`. Do not link an object that was not written.
-- `write_file` on an existing name stays `DuplicateName`. `replace_file` and `delete_entry` leave the old objects on disk.
-- A missing or corrupt chunk returns `Unavailable` and no partial plaintext. A hex object that fails to decrypt fails `status`.
-- Still out of v1: remote rewrap, biometrics, a Shadow password, a two-head content view, unreachable-object deletion, and any crash claim beyond the tested temp-file cleanup.
+- A missing chunk on the selected or sole head is `Incomplete` and names the file. A tampered chunk is `Unavailable`.
+- `read_file_chunks` returns bytes only after that chunk verifies. `read_file` returns the whole file or nothing.
+- Do not delete unreachable objects. `delete_entry` removes one name. Do not touch conflict copies.
+- The selected head stays in memory. Empty files have zero chunks.
+- Still out of v1: remote rewrap, biometrics, a Shadow password, a two-head content view, and any crash claim beyond the tested temp-file cleanup.
 - Explicit scope restrictions: no credentials in git, no real user data, no Shadow/Specter claim.
+
+## Session log — 2026-11-01 missing chunks and streaming reads
+
+- Started from main at `06e16d0` (PR #20 merged).
+- Adopted the #20 recommendations: no automatic deletion, `delete_entry` is one name, streaming reads do not release unverified bytes, and an empty file stays zero chunks.
+- `status` walks the sole head, or the selected head when forked. Absent descriptor or chunk files become `Incomplete { entries }` with those file names. Restoring the chunk file returns `Ok` for a sole head. A present ciphertext that fails AEAD is `Unavailable`.
+- `read_file_chunks` checks AEAD, manifest order, and `check_chunk_identity` before each chunk. A short manifest, a repeated chunk id, and a wrong ordinal fail without returning that chunk. `read_file` collects the stream and drops the buffer on failure.
+- Genesis now writes an empty root directory object. Conflict-copy bytes stay unchanged. No new Python vector was required.
+- `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (58 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0 on rustc 1.99.1.
 
 ## Session log — 2026-11-01 multi-chunk files and replace
 
