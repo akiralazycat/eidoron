@@ -1,9 +1,11 @@
-//! File descriptor and one file chunk.
+//! File descriptor and file chunks.
 //!
-//! A descriptor is kind `0x03`. A chunk is kind `0x04` followed by `file_id`,
-//! a big-endian ordinal, and the file bytes. [`crate::check_chunk_identity`]
-//! accepts a chunk only when those two fields match the caller. An empty file
-//! has zero chunks. This is not a general CBOR decoder.
+//! A descriptor is kind `0x03`. Its chunk list is ordered: index 0 is ordinal 0.
+//! A chunk is kind `0x04` followed by `file_id`, a big-endian ordinal, and the
+//! file bytes. [`crate::check_chunk_identity`] accepts a chunk only when those
+//! two fields match the caller. An empty file has zero chunks. A non-empty
+//! file is split into pieces of at most [`MAX_CHUNK_PAYLOAD`] bytes. This is
+//! not a general CBOR decoder.
 
 use crate::check_chunk_identity;
 use crate::narrow_cbor::{self, Cursor};
@@ -12,8 +14,26 @@ const FILE_KIND: u8 = 0x03;
 const CHUNK_KIND: u8 = 0x04;
 const BODY_SCHEMA: u8 = 0x00;
 const CHUNK_PREFIX: usize = 22;
-const MAX_CHUNK_PAYLOAD: usize = 1_048_576 - CHUNK_PREFIX;
-const MAX_CHUNKS: usize = 8192;
+/// Largest `file_bytes` in one chunk. Plaintext cap is 1,048,576, minus the
+/// 22-byte chunk prefix.
+pub const MAX_CHUNK_PAYLOAD: usize = 1_048_576 - CHUNK_PREFIX;
+pub const MAX_CHUNKS: usize = 8192;
+
+/// How many chunks `len` file bytes need.
+///
+/// Zero is an empty file: no chunk objects. More than [`MAX_CHUNKS`] is rejected.
+pub fn chunk_count(len: usize) -> Result<usize, FileBodyError> {
+    if len == 0 {
+        return Ok(0);
+    }
+    let Some(max_total) = MAX_CHUNKS.checked_mul(MAX_CHUNK_PAYLOAD) else {
+        return Err(FileBodyError::Unreadable);
+    };
+    if len > max_total {
+        return Err(FileBodyError::Unreadable);
+    }
+    Ok(len.div_ceil(MAX_CHUNK_PAYLOAD))
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FileDescriptor {
@@ -161,5 +181,29 @@ mod tests {
             b"synthetic"
         );
         assert!(chunk_payload(CHUNK_SYNTHETIC, &[0x44; 16], 1).is_err());
+    }
+
+    #[test]
+    fn chunk_count_matches_the_size_limit() {
+        assert_eq!(chunk_count(0).expect("empty file"), 0);
+        assert_eq!(chunk_count(MAX_CHUNK_PAYLOAD).expect("exact"), 1);
+        assert_eq!(chunk_count(MAX_CHUNK_PAYLOAD + 1).expect("over"), 2);
+        let max_total = MAX_CHUNKS * MAX_CHUNK_PAYLOAD;
+        assert_eq!(chunk_count(max_total).expect("cap"), MAX_CHUNKS);
+        assert_eq!(chunk_count(max_total + 1), Err(FileBodyError::Unreadable));
+
+        let exact = vec![0x11u8; MAX_CHUNK_PAYLOAD];
+        assert_eq!(exact.chunks(MAX_CHUNK_PAYLOAD).count(), 1);
+        let mut over = exact;
+        over.push(0x22);
+        let parts: Vec<&[u8]> = over.chunks(MAX_CHUNK_PAYLOAD).collect();
+        assert_eq!(parts.len(), 2);
+        assert_eq!(parts[0].len(), MAX_CHUNK_PAYLOAD);
+        assert_eq!(parts[1], &[0x22]);
+        let encoded = encode_chunk(&[0x44; 16], 1, parts[1]).expect("second chunk");
+        assert_eq!(
+            chunk_payload(&encoded, &[0x44; 16], 1).expect("open second"),
+            &[0x22]
+        );
     }
 }

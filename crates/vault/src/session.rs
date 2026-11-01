@@ -36,7 +36,7 @@ use crate::directory_body::{
     encode_directory,
 };
 use crate::file_body::{
-    chunk_payload, decode_file_descriptor, encode_chunk, encode_file_descriptor,
+    chunk_count, chunk_payload, decode_file_descriptor, encode_chunk, encode_file_descriptor,
 };
 use crate::{HistoryStatus, LocalCommit, VaultError, check_directory_name, classify_heads};
 
@@ -125,30 +125,41 @@ impl Session {
 
     /// Write a directory object and a child commit under the selected `head`.
     ///
-    /// Names are stored in NFC. The same name twice, including NFC and NFD
-    /// spellings, is [`VaultError::DuplicateName`] and writes nothing. Other
-    /// heads are not modified. On success the selection moves to the new commit.
+    /// Each entry is an empty subdirectory, and that subdirectory object is
+    /// written before it is linked. A file entry is rejected and nothing is
+    /// written: files are added with [`Session::write_file`]. Names are stored
+    /// in NFC. The same name twice, including NFC and NFD spellings, is
+    /// [`VaultError::DuplicateName`] and writes nothing. Other heads are not
+    /// modified. On success the selection moves to the new commit. The
+    /// selection is not written into the folder.
     pub fn append_directory(
         &mut self,
         head: [u8; 32],
         entries: &[(&str, ChildKind)],
     ) -> Result<[u8; 32], VaultError> {
         self.require_head(head)?;
-        let mut stored = Vec::with_capacity(entries.len());
-        for (name, kind) in entries {
-            stored.push(DirectoryEntry {
-                name: (*name).to_string(),
-                kind: *kind,
-                object_id: random_array()?,
-            });
+        let planned = plan_directory_entries(entries)?;
+        if planned
+            .iter()
+            .any(|(_, kind)| *kind != ChildKind::Directory)
+        {
+            return Err(VaultError::Unavailable);
         }
         let dir_id: [u8; 16] = random_array()?;
-        let plaintext = encode_directory(&dir_id, None, &stored).map_err(directory_error)?;
-        let directory_object: [u8; 32] = random_array()?;
-        self.put_plaintext(directory_object, &plaintext)?;
-        let commit = self.write_child_commit(head, directory_object)?;
-        self.selected = Some(commit);
-        Ok(commit)
+        let mut stored = Vec::with_capacity(planned.len());
+        for (name, _) in planned {
+            let child_logical: [u8; 16] = random_array()?;
+            let child_object: [u8; 32] = random_array()?;
+            let child =
+                encode_directory(&child_logical, Some(&dir_id), &[]).map_err(directory_error)?;
+            self.put_plaintext(child_object, &child)?;
+            stored.push(DirectoryEntry {
+                name,
+                kind: ChildKind::Directory,
+                object_id: child_object,
+            });
+        }
+        self.commit_entries(head, dir_id, &stored)
     }
 
     /// Entries in the selected head's root directory, in stored name order.
@@ -157,11 +168,15 @@ impl Session {
         Ok(self.decoded_directory(head)?.entries)
     }
 
-    /// Add one small file under the selected head and commit that directory.
+    /// Add one file under the selected head and commit that directory.
     ///
-    /// A non-empty payload is one chunk. [`crate::check_chunk_identity`] runs
-    /// before the chunk is stored and again when [`Session::read_file`] opens it.
-    /// The previous directory's other names are kept. Other heads are not modified.
+    /// An empty payload stores no chunks. Any other payload is split into
+    /// chunks of at most [`crate::file_body::MAX_CHUNK_PAYLOAD`] bytes, each
+    /// checked with [`crate::check_chunk_identity`] before it is stored.
+    /// [`Session::read_file`] checks every chunk again and returns nothing if
+    /// one is missing or fails to open. An existing name is
+    /// [`VaultError::DuplicateName`] and writes nothing. Other heads are not
+    /// modified. On success the selection moves to the new commit.
     pub fn write_file(
         &mut self,
         head: [u8; 32],
@@ -174,31 +189,53 @@ impl Session {
         if loaded.entries.iter().any(|entry| entry.name == name) {
             return Err(VaultError::DuplicateName);
         }
-        let file_id: [u8; 16] = random_array()?;
-        let mut chunks = Vec::new();
-        if !bytes.is_empty() {
-            let chunk_id: [u8; 32] = random_array()?;
-            let plain = encode_chunk(&file_id, 0, bytes).map_err(|_| VaultError::Unavailable)?;
-            self.put_plaintext(chunk_id, &plain)?;
-            chunks.push(chunk_id);
-        }
-        let descriptor_id: [u8; 32] = random_array()?;
-        let size = u64::try_from(bytes.len()).map_err(|_| VaultError::Unavailable)?;
-        let descriptor = encode_file_descriptor(&file_id, &loaded.dir_id, size, &chunks)
-            .map_err(|_| VaultError::Unavailable)?;
-        self.put_plaintext(descriptor_id, &descriptor)?;
+        let object_id = self.store_new_file(&loaded.dir_id, bytes)?;
         loaded.entries.push(DirectoryEntry {
             name,
             kind: ChildKind::File,
-            object_id: descriptor_id,
+            object_id,
         });
-        let directory_object: [u8; 32] = random_array()?;
-        let directory =
-            encode_directory(&loaded.dir_id, None, &loaded.entries).map_err(directory_error)?;
-        self.put_plaintext(directory_object, &directory)?;
-        let commit = self.write_child_commit(head, directory_object)?;
-        self.selected = Some(commit);
-        Ok(commit)
+        self.commit_entries(head, loaded.dir_id, &loaded.entries)
+    }
+
+    /// Replace one file under the selected head with a new file object.
+    ///
+    /// The new commit points at the new descriptor. Previous descriptor and
+    /// chunk objects stay on disk. [`Session::write_file`] on that name still
+    /// returns [`VaultError::DuplicateName`]. A missing name writes nothing.
+    pub fn replace_file(
+        &mut self,
+        head: [u8; 32],
+        name: &str,
+        bytes: &[u8],
+    ) -> Result<[u8; 32], VaultError> {
+        self.require_head(head)?;
+        let name = check_directory_name(name).map_err(|_| VaultError::RejectedName)?;
+        let mut loaded = self.loaded_directory(head)?;
+        let Some(index) = loaded.entries.iter().position(|entry| entry.name == name) else {
+            return Err(VaultError::Unavailable);
+        };
+        if loaded.entries[index].kind != ChildKind::File {
+            return Err(VaultError::Unavailable);
+        }
+        let object_id = self.store_new_file(&loaded.dir_id, bytes)?;
+        loaded.entries[index].object_id = object_id;
+        self.commit_entries(head, loaded.dir_id, &loaded.entries)
+    }
+
+    /// Unlink one name in a new commit. The named object is left on disk.
+    ///
+    /// A missing name writes nothing.
+    pub fn delete_entry(&mut self, head: [u8; 32], name: &str) -> Result<[u8; 32], VaultError> {
+        self.require_head(head)?;
+        let name = check_directory_name(name).map_err(|_| VaultError::RejectedName)?;
+        let mut loaded = self.loaded_directory(head)?;
+        let before = loaded.entries.len();
+        loaded.entries.retain(|entry| entry.name != name);
+        if loaded.entries.len() == before {
+            return Err(VaultError::Unavailable);
+        }
+        self.commit_entries(head, loaded.dir_id, &loaded.entries)
     }
 
     /// Bytes of one file in the selected head's directory.
@@ -225,13 +262,25 @@ impl Session {
         let mut payload = Vec::new();
         for (index, chunk_id) in descriptor.chunks.iter().enumerate() {
             let ordinal = u32::try_from(index).map_err(|_| VaultError::Unavailable)?;
-            let plain = self.read_object(*chunk_id)?;
-            let piece = chunk_payload(&plain, &descriptor.file_id, ordinal)
-                .map_err(|_| VaultError::Unavailable)?;
+            let plain = match self.read_object(*chunk_id) {
+                Ok(plain) => plain,
+                Err(error) => {
+                    payload.clear();
+                    return Err(error);
+                }
+            };
+            let piece = match chunk_payload(&plain, &descriptor.file_id, ordinal) {
+                Ok(piece) => piece,
+                Err(_) => {
+                    payload.clear();
+                    return Err(VaultError::Unavailable);
+                }
+            };
             payload.extend_from_slice(piece);
         }
         let size = u64::try_from(payload.len()).map_err(|_| VaultError::Unavailable)?;
         if size != descriptor.size {
+            payload.clear();
             return Err(VaultError::Unavailable);
         }
         Ok(payload)
@@ -265,6 +314,46 @@ impl Session {
             return Err(VaultError::WrongHead);
         }
         Ok(head)
+    }
+
+    fn store_new_file(&self, dir_id: &[u8; 16], bytes: &[u8]) -> Result<[u8; 32], VaultError> {
+        let count = chunk_count(bytes.len()).map_err(|_| VaultError::Unavailable)?;
+        let file_id: [u8; 16] = random_array()?;
+        let mut chunks = Vec::with_capacity(count);
+        for (index, piece) in bytes
+            .chunks(crate::file_body::MAX_CHUNK_PAYLOAD)
+            .enumerate()
+        {
+            let ordinal = u32::try_from(index).map_err(|_| VaultError::Unavailable)?;
+            let chunk_id: [u8; 32] = random_array()?;
+            let plain =
+                encode_chunk(&file_id, ordinal, piece).map_err(|_| VaultError::Unavailable)?;
+            self.put_plaintext(chunk_id, &plain)?;
+            chunks.push(chunk_id);
+        }
+        if chunks.len() != count {
+            return Err(VaultError::Unavailable);
+        }
+        let descriptor_id: [u8; 32] = random_array()?;
+        let size = u64::try_from(bytes.len()).map_err(|_| VaultError::Unavailable)?;
+        let descriptor = encode_file_descriptor(&file_id, dir_id, size, &chunks)
+            .map_err(|_| VaultError::Unavailable)?;
+        self.put_plaintext(descriptor_id, &descriptor)?;
+        Ok(descriptor_id)
+    }
+
+    fn commit_entries(
+        &mut self,
+        head: [u8; 32],
+        dir_id: [u8; 16],
+        entries: &[DirectoryEntry],
+    ) -> Result<[u8; 32], VaultError> {
+        let directory_object: [u8; 32] = random_array()?;
+        let directory = encode_directory(&dir_id, None, entries).map_err(directory_error)?;
+        self.put_plaintext(directory_object, &directory)?;
+        let commit = self.write_child_commit(head, directory_object)?;
+        self.selected = Some(commit);
+        Ok(commit)
     }
 
     fn write_genesis(&mut self) -> Result<[u8; 32], VaultError> {
@@ -383,6 +472,26 @@ impl Session {
 struct LoadedDirectory {
     dir_id: [u8; 16],
     entries: Vec<DirectoryEntry>,
+}
+
+fn plan_directory_entries(
+    entries: &[(&str, ChildKind)],
+) -> Result<Vec<(String, ChildKind)>, VaultError> {
+    if entries.len() > 4096 {
+        return Err(VaultError::Unavailable);
+    }
+    let mut planned = Vec::with_capacity(entries.len());
+    for (name, kind) in entries {
+        let stored = check_directory_name(name).map_err(|_| VaultError::RejectedName)?;
+        planned.push((stored, *kind));
+    }
+    planned.sort_by(|left, right| left.0.as_bytes().cmp(right.0.as_bytes()));
+    for pair in planned.windows(2) {
+        if pair[0].0 == pair[1].0 {
+            return Err(VaultError::DuplicateName);
+        }
+    }
+    Ok(planned)
 }
 
 fn directory_error(error: DirectoryBodyError) -> VaultError {
@@ -602,6 +711,7 @@ mod tests {
     use super::*;
     use crate::ChildKind;
     use crate::commit_check::read_commit_parent;
+    use crate::file_body::{MAX_CHUNK_PAYLOAD, decode_file_descriptor};
     use eidoron_provider_local::VAULT_HEADER_NAME;
     use std::collections::BTreeMap;
     use std::fs;
@@ -673,6 +783,25 @@ mod tests {
             }
         }
         files
+    }
+
+    fn entry_object(session: &Session, name: &str) -> [u8; 32] {
+        session
+            .list_directory()
+            .expect("list")
+            .into_iter()
+            .find(|entry| entry.name == name)
+            .expect(name)
+            .object_id
+    }
+
+    fn chunk_ids(session: &Session, name: &str) -> Vec<[u8; 32]> {
+        let plain = session
+            .read_object(entry_object(session, name))
+            .expect("descriptor");
+        decode_file_descriptor(&plain)
+            .expect("decode descriptor")
+            .chunks
     }
 
     fn hex_id(id: &[u8; 32]) -> String {
@@ -750,29 +879,46 @@ mod tests {
         assert_eq!(VaultError::RejectedName.to_string(), "rejected name");
         assert!(!VaultError::DuplicateName.to_string().contains('é'));
         assert_eq!(session.heads().expect("still genesis"), vec![genesis]);
-        let child = session
-            .append_directory(
-                genesis,
-                &[("b", ChildKind::File), ("notes", ChildKind::Directory)],
-            )
-            .expect("directory");
+        let before_files = snapshot(&scratch.0);
         assert_eq!(
-            listed_names(&session),
-            vec!["b".to_string(), "notes".to_string()]
+            session
+                .append_directory(
+                    genesis,
+                    &[("b", ChildKind::File), ("notes", ChildKind::Directory)]
+                )
+                .err(),
+            Some(VaultError::Unavailable)
         );
+        assert_eq!(snapshot(&scratch.0), before_files);
+        let child = session
+            .append_directory(genesis, &[("notes", ChildKind::Directory)])
+            .expect("directory");
+        assert_eq!(listed_names(&session), vec!["notes".to_string()]);
+        let notes = session
+            .list_directory()
+            .expect("list notes")
+            .into_iter()
+            .find(|entry| entry.name == "notes")
+            .expect("notes entry");
+        let notes_plain = session.read_object(notes.object_id).expect("notes object");
+        let notes_dir = crate::directory_body::decode_directory(&notes_plain).expect("empty dir");
+        assert!(notes_dir.entries.is_empty());
         let file_commit = session
             .write_file(child, "e\u{0301}", b"synthetic-file")
             .expect("file");
         assert_eq!(
             listed_names(&session),
-            vec!["b".to_string(), "notes".to_string(), "é".to_string()]
+            vec!["notes".to_string(), "é".to_string()]
         );
         assert_eq!(session.read_file("é").expect("nfc"), b"synthetic-file");
         assert_eq!(
             session.read_file("e\u{0301}").expect("nfd"),
             b"synthetic-file"
         );
-        assert_eq!(session.read_file("b").err(), Some(VaultError::Unavailable));
+        assert_eq!(
+            session.read_file("notes").err(),
+            Some(VaultError::Unavailable)
+        );
         assert_eq!(session.status().expect("ok"), VaultStatus::Ok);
         drop(session);
         let mut opened = open_vault(&scratch.0, "synthetic-vault-pass").expect("reopen");
@@ -784,7 +930,7 @@ mod tests {
         opened.select_head(file_commit).expect("select file head");
         assert_eq!(
             listed_names(&opened),
-            vec!["b".to_string(), "notes".to_string(), "é".to_string()]
+            vec!["notes".to_string(), "é".to_string()]
         );
         assert_eq!(
             opened.read_file("e\u{0301}").expect("reopen file"),
@@ -803,10 +949,10 @@ mod tests {
         left.select_head(genesis).expect("left select");
         right.select_head(genesis).expect("right select");
         let left_head = left
-            .append_directory(genesis, &[("left", ChildKind::File)])
+            .append_directory(genesis, &[("left", ChildKind::Directory)])
             .expect("left dir");
         let right_head = right
-            .append_directory(genesis, &[("right", ChildKind::File)])
+            .append_directory(genesis, &[("right", ChildKind::Directory)])
             .expect("right dir");
         drop(right);
         copy_missing(&right_dir.0, &left_dir.0);
@@ -825,7 +971,7 @@ mod tests {
         );
         let before = snapshot(&left_dir.0);
         let child = left
-            .append_directory(left_head, &[("more", ChildKind::File)])
+            .append_directory(left_head, &[("more", ChildKind::Directory)])
             .expect("append on the selected line");
         let after = snapshot(&left_dir.0);
         for (name, bytes) in &before {
@@ -874,13 +1020,121 @@ mod tests {
     }
 
     #[test]
+    fn multi_chunk_replace_and_a_bad_chunk_return_nothing() {
+        let scratch = Scratch::new();
+        let mut session = create_vault(&scratch.0, "synthetic-vault-pass").expect("create");
+        let mut head = only_head(&session);
+        let before_select = snapshot(&scratch.0);
+        session.select_head(head).expect("select");
+        assert_eq!(snapshot(&scratch.0), before_select);
+        let copy_path = scratch.0.join("notes (1)");
+        let conflicted_path = scratch.0.join("notes (conflicted copy)");
+        fs::write(&copy_path, b"drive-copy").expect("copy");
+        fs::write(&conflicted_path, b"dropbox-copy").expect("conflicted");
+
+        head = session.write_file(head, "empty", b"").expect("empty file");
+        assert_eq!(session.read_file("empty").expect("empty read"), b"");
+        assert!(chunk_ids(&session, "empty").is_empty());
+
+        let exact = vec![0x11u8; MAX_CHUNK_PAYLOAD];
+        head = session.write_file(head, "exact", &exact).expect("exact");
+        assert_eq!(chunk_ids(&session, "exact").len(), 1);
+        assert_eq!(session.read_file("exact").expect("exact read"), exact);
+
+        let mut over = vec![0x22u8; MAX_CHUNK_PAYLOAD];
+        over.push(0x33);
+        head = session.write_file(head, "over", &over).expect("over");
+        assert_eq!(chunk_ids(&session, "over").len(), 2);
+        assert_eq!(session.read_file("over").expect("over read"), over);
+        drop(session);
+
+        let mut opened = open_vault(&scratch.0, "synthetic-vault-pass").expect("reopen");
+        opened.select_head(head).expect("select reopened");
+        assert_eq!(opened.read_file("empty").expect("empty again"), b"");
+        assert_eq!(opened.read_file("exact").expect("exact again"), exact);
+        assert_eq!(opened.read_file("over").expect("over again"), over);
+
+        let old_descriptor = entry_object(&opened, "empty");
+        let old_bytes = fs::read(scratch.0.join(hex_id(&old_descriptor))).expect("old descriptor");
+        head = opened
+            .replace_file(head, "empty", b"replaced")
+            .expect("replace");
+        assert_eq!(opened.read_file("empty").expect("replaced"), b"replaced");
+        assert_ne!(entry_object(&opened, "empty"), old_descriptor);
+        assert_eq!(
+            fs::read(scratch.0.join(hex_id(&old_descriptor))).expect("old remains"),
+            old_bytes
+        );
+        assert_eq!(
+            opened.write_file(head, "empty", b"other").err(),
+            Some(VaultError::DuplicateName)
+        );
+        assert_eq!(
+            opened.read_file("empty").expect("still replaced"),
+            b"replaced"
+        );
+        assert_eq!(opened.heads().expect("one head"), vec![head]);
+
+        let exact_descriptor = entry_object(&opened, "exact");
+        let exact_bytes =
+            fs::read(scratch.0.join(hex_id(&exact_descriptor))).expect("exact descriptor");
+        head = opened.delete_entry(head, "exact").expect("unlink");
+        assert!(!listed_names(&opened).iter().any(|name| name == "exact"));
+        assert_eq!(
+            opened.read_file("exact").err(),
+            Some(VaultError::Unavailable)
+        );
+        assert_eq!(
+            fs::read(scratch.0.join(hex_id(&exact_descriptor))).expect("exact remains"),
+            exact_bytes
+        );
+        assert_eq!(opened.read_file("over").expect("over still"), over);
+        assert_eq!(fs::read(&copy_path).expect("copy"), b"drive-copy");
+        assert_eq!(
+            fs::read(&conflicted_path).expect("conflicted"),
+            b"dropbox-copy"
+        );
+
+        let over_chunks = chunk_ids(&opened, "over");
+        fs::remove_file(scratch.0.join(hex_id(&over_chunks[1]))).expect("drop second chunk");
+        assert_eq!(
+            opened.read_file("over").err(),
+            Some(VaultError::Unavailable)
+        );
+        assert_eq!(
+            opened.status().expect("missing chunk is not a bad object"),
+            VaultStatus::Ok
+        );
+        assert_eq!(opened.read_file("empty").expect("other file"), b"replaced");
+
+        let mut tampered = fs::read(scratch.0.join(hex_id(&over_chunks[0]))).expect("first chunk");
+        let last = tampered.len() - 1;
+        tampered[last] ^= 0x01;
+        fs::write(scratch.0.join(hex_id(&over_chunks[0])), &tampered).expect("tamper");
+        assert_eq!(opened.status().err(), Some(VaultError::Unavailable));
+        assert_eq!(
+            opened.read_file("over").err(),
+            Some(VaultError::Unavailable)
+        );
+        assert_eq!(
+            fs::read(&copy_path).expect("copy after tamper"),
+            b"drive-copy"
+        );
+        assert_eq!(
+            fs::read(&conflicted_path).expect("conflicted after tamper"),
+            b"dropbox-copy"
+        );
+        let _ = head;
+    }
+
+    #[test]
     fn a_missing_parent_is_incomplete() {
         let scratch = Scratch::new();
         let mut session = create_vault(&scratch.0, "synthetic-vault-pass").expect("create");
         let genesis = only_head(&session);
         session.select_head(genesis).expect("select");
         let child = session
-            .append_directory(genesis, &[("kept", ChildKind::File)])
+            .append_directory(genesis, &[("kept", ChildKind::Directory)])
             .expect("child");
         fs::remove_file(scratch.0.join(hex_id(&genesis))).expect("remove parent");
         assert_eq!(

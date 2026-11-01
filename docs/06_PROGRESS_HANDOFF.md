@@ -2,8 +2,8 @@
 
 - Created: **2026-10-31 JST**
 - Last updated: **2026-10-31 JST**
-- Current baseline: **selected-head directory and one small file; forks kept**
-- Implementation status: **56 unit tests pass; NO CLOUD API, NO CREDENTIALS; crash claim limited to tested temp cleanup**
+- Current baseline: **multi-chunk files, explicit replace, unlink without deletion**
+- Implementation status: **58 unit tests pass; NO CLOUD API, NO CREDENTIALS; crash claim limited to tested temp cleanup**
 - Foundation branch: `docs/foundation-master-plan-20261031` (merged)
 - Foundation PR: https://github.com/akiralazycat/eidoron/pull/1 — merged into main on 2026-10-31 JST
 - Foundation merge commit: `7835fd40e5608f5525db9dcb625b30ddff395e7e`
@@ -39,7 +39,7 @@
 | P1.5 | Internal security design review and scope | DONE (docs only) | 2026-10-31; `docs/11_SECURITY_DESIGN_REVIEW.md`, ADR-0004. Not an external audit; release gate BLOCKED |
 | P2.1 | Synthetic local-only Rust workspace | DONE (scaffold verified, no crypto) | rustc 1.99.1 fmt/test/clippy recorded in `docs/12_P2_IMPLEMENTATION.md` |
 | P2.1-V | Verify lockfile, fmt, test, clippy on actual Rust | DONE | 2026-10-31: rustc 1.99.1 (`58cf8f9c3`, 2026-10-13). fmt check, 10 unit tests, clippy `-D warnings`, Cargo-generated path-only lockfile. Next tasks in `docs/PLAN.md` |
-| P2.2 | Known-answer crypto vectors and suite evaluation | PARTIAL | Through a selected-head directory and one small file on 2026-10-31. Live R2/S3, remote rewrap, biometrics, and Shadow passwords stay out of v1. See `docs/PLAN.md` |
+| P2.2 | Known-answer crypto vectors and suite evaluation | PARTIAL | Through multi-chunk files and explicit replace on 2026-11-01. Live R2/S3, remote rewrap, biometrics, and Shadow passwords stay out of v1. See `docs/PLAN.md` |
 | P2 | Rust Vault implementation | NOT STARTED | Do not claim ready |
 | P3 | Safe cloud sync | NOT STARTED | Do not claim ready |
 | P4/P5 | iOS / Android native clients | NOT STARTED | Do not claim ready |
@@ -88,15 +88,28 @@
 | 2026-10-31 | vault session | Create and open a sync-folder vault | `Session::status` is Ok / Conflict / Incomplete / Locked. `eidoron_crypto::status()` stays NotImplemented. Wrong password is `Unavailable`. No new fixed ciphertext vector |
 | 2026-10-31 | #18 adopted | Select a head before append; do not skip a failed open; no timing claim | Wrong-head append is `WrongHead`. A hex file that does not decrypt fails `status`. Equal running time is not claimed |
 | 2026-10-31 | directory under one head | NFC directory plus one chunk file | `list_directory` reads only the selected head. Oracle: `scripts/directory_kat.py`. No two-head content view |
+| 2026-11-01 | #19 adopted | Link only written objects; no silent overwrite; selection stays in memory | `append_directory` writes subdirectory objects. `write_file` on an existing name is `DuplicateName`. `select_head` does not change the folder |
+| 2026-11-01 | multi-chunk file | Split at 1,048,554 bytes; replace and unlink keep old objects | A missing chunk is `Unavailable` with no partial plaintext. A tampered chunk fails `status`. No new ciphertext vector |
 
-## Immediate next task — real empty subdirectory
+## Immediate next task — list one subdirectory
 
 **Do not** create a Google Drive, Dropbox, R2, or S3 account for this repository, and do not add a vendor SDK.
-- Append only after `select_head`, and only under that head. `list_directory` reads that head alone.
-- A hex object that fails to decrypt fails `status`. Do not skip it. Do not claim that password failure and header failure take the same time.
-- `append_directory` records child ids and does not create those objects. `write_file` creates one chunk.
-- Still out of v1: remote rewrap, biometrics, a Shadow password, a two-head content view, and any crash claim beyond the tested temp-file cleanup.
+- Append only after `select_head`, and only under that head. The selection is not stored in the folder.
+- `append_directory` writes empty subdirectory objects. Files are created by `write_file` or `replace_file`. Do not link an object that was not written.
+- `write_file` on an existing name stays `DuplicateName`. `replace_file` and `delete_entry` leave the old objects on disk.
+- A missing or corrupt chunk returns `Unavailable` and no partial plaintext. A hex object that fails to decrypt fails `status`.
+- Still out of v1: remote rewrap, biometrics, a Shadow password, a two-head content view, unreachable-object deletion, and any crash claim beyond the tested temp-file cleanup.
 - Explicit scope restrictions: no credentials in git, no real user data, no Shadow/Specter claim.
+
+## Session log — 2026-11-01 multi-chunk files and replace
+
+- Started from main at `1d46aa0` (PR #19 merged).
+- Adopted the #19 recommendations: directory links are written objects, an existing name stays `DuplicateName` until `replace_file`, and the selected head is not written to the folder.
+- `write_file` splits at 1,048,554 bytes. An empty file has zero chunks and reads back empty. The exact cap is one chunk. One byte past the cap is two chunks. More than 8192 chunks is `Unavailable`.
+- `read_file` reassembles only after every chunk passes `check_chunk_identity`. A missing chunk returns `Unavailable` and leaves `status` as `Ok`. A tampered chunk fails decrypt, so `status` is `Unavailable`. Neither path returns a prefix of the file.
+- `replace_file` writes a new descriptor and commit. The previous descriptor file is unchanged. `delete_entry` removes the name from the new directory and leaves the descriptor file.
+- Conflict-copy bytes stay unchanged across these writes. No new Python vector was required. The chunk-size boundaries are lengths, not ciphertext fixtures.
+- `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (58 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0 on rustc 1.99.1.
 
 ## Session log — 2026-10-31 directory under a selected head
 
