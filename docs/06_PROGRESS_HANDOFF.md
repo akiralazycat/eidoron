@@ -2,8 +2,8 @@
 
 - Created: **2026-10-31 JST**
 - Last updated: **2026-10-31 JST**
-- Current baseline: **forks stay visible with per-head waiting files; metadata leakage recorded, not padded**
-- Implementation status: **65 unit tests pass; NO CLOUD API, NO CREDENTIALS; no automatic object deletion; crash claim limited to tested temp cleanup**
+- Current baseline: **last-chunk padding; no dummy chunks; no mtime rounding; GC is a policy doc only**
+- Implementation status: **67 unit tests pass; NO CLOUD API, NO CREDENTIALS; no automatic object deletion; crash claim limited to tested temp cleanup**
 - Foundation branch: `docs/foundation-master-plan-20261031` (merged)
 - Foundation PR: https://github.com/akiralazycat/eidoron/pull/1 — merged into main on 2026-10-31 JST
 - Foundation merge commit: `7835fd40e5608f5525db9dcb625b30ddff395e7e`
@@ -93,16 +93,26 @@
 | 2026-11-01 | #20 adopted | No automatic GC; unlink is one name; streaming hides unverified bytes | Future GC, if any, only objects unreachable from every head, never conflict copies. `delete_entry` is not recursive. Empty file stays zero chunks |
 | 2026-11-01 | chunk sync status | Missing chunk is `Incomplete` with the file name; tampered chunk is `Unavailable` | `read_file_chunks` yields a chunk only after AEAD and ordinal checks. No new ciphertext vector |
 | 2026-11-01 | status fork | `Conflict` always lists every head | Waiting files on any head are attached with that head id. `Incomplete` is a single head only |
-| 2026-11-01 | metadata | Sync-folder leakage note | [14_METADATA_LEAKAGE.md](14_METADATA_LEAKAGE.md). Names are 64 hex. Chunk file length is payload plus 126 bytes. Padding not implemented |
+| 2026-11-01 | metadata | Sync-folder leakage note | [14_METADATA_LEAKAGE.md](14_METADATA_LEAKAGE.md). Names are 64 hex. Updated the same day for last-chunk buckets |
+| 2026-11-01 | padding | Last chunk padded to power-of-two, floor 4096 | Full chunks stay at 1,048,550. Schema 0x00 is not read. No dummy chunks. No mtime rounding. GC policy is [15_GC_POLICY.md](15_GC_POLICY.md) with no deletion code |
 
 ## Immediate next task — list one subdirectory
 
 **Do not** create a Google Drive, Dropbox, R2, or S3 account for this repository, and do not add a vendor SDK.
-- A fork is `Conflict` even when a file is waiting on a chunk. Each waiting file carries its head id.
-- Do not pad chunks yet. The length leak is documented in [14_METADATA_LEAKAGE.md](14_METADATA_LEAKAGE.md) and pinned by a test.
-- Do not delete unreachable objects. Do not touch conflict copies.
+- Do not add a garbage collector. The rule is [15_GC_POLICY.md](15_GC_POLICY.md).
+- Do not add dummy chunks or round mtimes.
 - Still out of v1: remote rewrap, biometrics, a Shadow password, a two-head content view, and any crash claim beyond the tested temp-file cleanup.
 - Explicit scope restrictions: no credentials in git, no real user data, no Shadow/Specter claim.
+
+## Session log — 2026-11-01 last-chunk padding
+
+- Started from main at `8063dbe` (PR #22 merged).
+- Owner decisions: pad the last chunk now, no dummy chunks, no mtime rounding.
+- A short last chunk is zero-padded to the next power of two, at least 4096 bytes, and never past 1,048,550. Full chunks stay at that cap. Empty files still have zero chunks.
+- The unpadded length is a `u32` inside the chunk and the file size is inside the descriptor. Both are under AEAD. They must match, and padding bytes must be zero. `read_file_chunks` returns only the unpadded prefix. Schema `0x00` chunks are rejected. Pre-release, there is no reader for them.
+- Bucket bytes for the synthetic 9-byte payload are from `scripts/directory_kat.py`, not from the Rust encoder.
+- [15_GC_POLICY.md](15_GC_POLICY.md) describes a user-triggered sweep and forbids automatic deletion, conflict-copy deletion, and deletion while any head is incomplete. No sweeper was added.
+- `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (67 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0 on rustc 1.99.1.
 
 ## Session log — 2026-11-01 fork status and metadata leakage
 

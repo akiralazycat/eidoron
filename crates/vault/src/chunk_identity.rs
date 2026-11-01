@@ -1,21 +1,23 @@
 //! File-chunk identity, compared with the caller's expectation.
 //!
-//! The decrypted body is `kind || schema || file_id:16 || ordinal:u32be || file_bytes`.
-//! Only `file_id` and `ordinal` are compared. `file_bytes` are not hashed or scanned,
-//! and no object store is consulted.
+//! The decrypted body is `kind || schema || file_id:16 || ordinal:u32be || true_len:u32be || file_bytes`.
+//! Schema `0x01` is the padded-chunk layout. Schema `0x00` is the pre-release
+//! unpadded layout and is rejected. Only `file_id` and `ordinal` are compared.
+//! `file_bytes` are not hashed or scanned, and no object store is consulted.
 
 use std::fmt;
 
 const CHUNK_KIND: u8 = 0x04;
-const BODY_SCHEMA: u8 = 0x00;
+const BODY_SCHEMA: u8 = 0x01;
 const FILE_ID_LEN: usize = 16;
 const ORDINAL_LEN: usize = 4;
-const PREFIX_LEN: usize = 2 + FILE_ID_LEN + ORDINAL_LEN;
+const TRUE_LEN: usize = 4;
+pub(crate) const CHUNK_HEADER_LEN: usize = 2 + FILE_ID_LEN + ORDINAL_LEN + TRUE_LEN;
 
 /// The chunk's `file_id` or `ordinal` does not match, or the body cannot be read.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChunkIdentityError {
-    /// Shorter than the fixed prefix, or schema is not `0x00`.
+    /// Shorter than the fixed prefix, or schema is not `0x01`.
     Unreadable,
     /// `kind` is not the file-chunk kind `0x04`.
     NotAChunk,
@@ -36,8 +38,8 @@ impl fmt::Display for ChunkIdentityError {
 /// Reject a decrypted chunk whose `file_id` or `ordinal` differs from `expected_file_id`
 /// and `expected_ordinal`.
 ///
-/// The error text does not include either identifier. Payload bytes after the
-/// 22-byte prefix are ignored.
+/// The error text does not include either identifier. Bytes after the
+/// 26-byte header are ignored.
 pub fn check_chunk_identity(
     decrypted: &[u8],
     expected_file_id: &[u8; FILE_ID_LEN],
@@ -49,12 +51,12 @@ pub fn check_chunk_identity(
     if decrypted[0] != CHUNK_KIND {
         return Err(ChunkIdentityError::NotAChunk);
     }
-    if decrypted.len() < PREFIX_LEN || decrypted[1] != BODY_SCHEMA {
+    if decrypted.len() < CHUNK_HEADER_LEN || decrypted[1] != BODY_SCHEMA {
         return Err(ChunkIdentityError::Unreadable);
     }
     let file_id = &decrypted[2..2 + FILE_ID_LEN];
     let ordinal = u32::from_be_bytes(
-        decrypted[2 + FILE_ID_LEN..PREFIX_LEN]
+        decrypted[2 + FILE_ID_LEN..2 + FILE_ID_LEN + ORDINAL_LEN]
             .try_into()
             .expect("ordinal is 4 bytes"),
     );
@@ -69,11 +71,12 @@ mod tests {
     use super::*;
 
     fn body(file_id: &[u8; 16], ordinal: [u8; 4], payload: &[u8]) -> Vec<u8> {
-        let mut out = Vec::with_capacity(PREFIX_LEN + payload.len());
+        let mut out = Vec::with_capacity(CHUNK_HEADER_LEN + payload.len());
         out.push(CHUNK_KIND);
         out.push(BODY_SCHEMA);
         out.extend_from_slice(file_id);
         out.extend_from_slice(&ordinal);
+        out.extend_from_slice(&(payload.len() as u32).to_be_bytes());
         out.extend_from_slice(payload);
         out
     }
@@ -145,7 +148,7 @@ mod tests {
             Err(ChunkIdentityError::Unreadable)
         );
         let mut bad_schema = body(&file_id, [0, 0, 0, 0], b"");
-        bad_schema[1] = 0x01;
+        bad_schema[1] = 0x00;
         assert_eq!(
             check_chunk_identity(&bad_schema, &file_id, 0),
             Err(ChunkIdentityError::Unreadable)
