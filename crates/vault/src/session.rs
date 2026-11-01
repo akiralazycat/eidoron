@@ -47,12 +47,34 @@ const COMMIT_KIND: u8 = 0x01;
 const BODY_SCHEMA: u8 = 0x00;
 
 /// What an unlocked session sees in the folder. Conflicting heads are all listed.
+///
+/// [`VaultStatus::Incomplete`] is a parent commit that has not arrived, or a
+/// file under the head being reported whose descriptor or chunk is not in the
+/// folder yet. `entries` names those files. An empty list means the missing
+/// piece is a commit parent or the root directory object, not a named file.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VaultStatus {
     Ok,
     Conflict(Vec<[u8; 32]>),
-    Incomplete,
+    Incomplete { entries: Vec<String> },
     Locked,
+}
+
+/// One file read chunk by chunk.
+///
+/// [`FileChunks::next_chunk`] returns payload bytes only after that chunk's
+/// ciphertext opens and [`crate::check_chunk_identity`] accepts its ordinal.
+/// A missing, reordered, duplicated, or truncated chunk is
+/// [`VaultError::Unavailable`] and that chunk's bytes are not returned.
+pub struct FileChunks<'a> {
+    session: &'a Session,
+    file_id: [u8; 16],
+    chunks: Vec<[u8; 32]>,
+    size: u64,
+    index: usize,
+    total: u64,
+    seen: Vec<[u8; 32]>,
+    failed: bool,
 }
 
 /// Unlocked access to one sync folder. Drop and [`Session::lock`] zeroize the root.
@@ -79,20 +101,42 @@ impl Session {
         Ok(self.vault_id)
     }
 
-    /// `Ok` is one complete head. `Conflict` lists every head. `Incomplete`
-    /// means a parent commit is not in the folder yet. `Locked` means the
-    /// root secret is gone.
+    /// `Ok` is one complete head whose reachable files are in the folder.
+    /// `Conflict` lists every head when the selected head is not waiting on a
+    /// file. `Incomplete` names files whose chunk or descriptor is absent.
+    /// A present object that does not decrypt is [`VaultError::Unavailable`].
+    /// `Locked` means the root secret is gone.
     pub fn status(&self) -> Result<VaultStatus, VaultError> {
         if self.root.is_none() {
             return Ok(VaultStatus::Locked);
         }
         let commits = self.load_commits()?;
         let view = classify_heads(&commits).map_err(|_| VaultError::Unavailable)?;
-        Ok(match view.status {
-            HistoryStatus::Empty | HistoryStatus::Incomplete { .. } => VaultStatus::Incomplete,
-            HistoryStatus::Single { .. } => VaultStatus::Ok,
-            HistoryStatus::Conflict { heads } => VaultStatus::Conflict(heads),
-        })
+        match view.status {
+            HistoryStatus::Empty => Ok(VaultStatus::Incomplete {
+                entries: Vec::new(),
+            }),
+            HistoryStatus::Incomplete { head } => {
+                let waiting = self.waiting_entries(head)?;
+                Ok(VaultStatus::Incomplete {
+                    entries: waiting.entries,
+                })
+            }
+            HistoryStatus::Single { head } => Ok(self.file_gap_status(head)?),
+            HistoryStatus::Conflict { heads } => {
+                if let Some(selected) = self.selected
+                    && heads.contains(&selected)
+                {
+                    let waiting = self.waiting_entries(selected)?;
+                    if waiting.blocked {
+                        return Ok(VaultStatus::Incomplete {
+                            entries: waiting.entries,
+                        });
+                    }
+                }
+                Ok(VaultStatus::Conflict(heads))
+            }
+        }
     }
 
     /// Current heads. Empty when the history is empty. This does not choose one.
@@ -240,9 +284,47 @@ impl Session {
 
     /// Bytes of one file in the selected head's directory.
     ///
-    /// `name` is normalized to NFC before the lookup. Each chunk must match the
-    /// descriptor's `file_id` and its ordinal.
+    /// This collects [`Session::read_file_chunks`]. A failure clears the buffer
+    /// and returns [`VaultError::Unavailable`] with no partial plaintext.
     pub fn read_file(&self, name: &str) -> Result<Vec<u8>, VaultError> {
+        let mut stream = self.read_file_chunks(name)?;
+        let mut payload = Vec::new();
+        loop {
+            match stream.next_chunk() {
+                Ok(Some(chunk)) => payload.extend(chunk),
+                Ok(None) => return Ok(payload),
+                Err(error) => {
+                    payload.clear();
+                    return Err(error);
+                }
+            }
+        }
+    }
+
+    /// Open a chunk-by-chunk read of one file under the selected head.
+    ///
+    /// Each [`FileChunks::next_chunk`] call checks the AEAD, the manifest
+    /// index, and `check_chunk_identity` before returning that chunk. The call
+    /// that follows the last chunk checks that the byte count matches the
+    /// descriptor.
+    pub fn read_file_chunks<'a>(&'a self, name: &str) -> Result<FileChunks<'a>, VaultError> {
+        let descriptor = self.open_file_descriptor(name)?;
+        Ok(FileChunks {
+            session: self,
+            file_id: descriptor.file_id,
+            chunks: descriptor.chunks,
+            size: descriptor.size,
+            index: 0,
+            total: 0,
+            seen: Vec::new(),
+            failed: false,
+        })
+    }
+
+    fn open_file_descriptor(
+        &self,
+        name: &str,
+    ) -> Result<crate::file_body::FileDescriptor, VaultError> {
         let head = self.selected_id()?;
         let stored = check_directory_name(name).map_err(|_| VaultError::RejectedName)?;
         let directory = self.decoded_directory(head)?;
@@ -259,31 +341,90 @@ impl Session {
         if descriptor.parent_dir_id != directory.dir_id {
             return Err(VaultError::Unavailable);
         }
-        let mut payload = Vec::new();
-        for (index, chunk_id) in descriptor.chunks.iter().enumerate() {
-            let ordinal = u32::try_from(index).map_err(|_| VaultError::Unavailable)?;
-            let plain = match self.read_object(*chunk_id) {
-                Ok(plain) => plain,
-                Err(error) => {
-                    payload.clear();
-                    return Err(error);
-                }
-            };
-            let piece = match chunk_payload(&plain, &descriptor.file_id, ordinal) {
-                Ok(piece) => piece,
-                Err(_) => {
-                    payload.clear();
-                    return Err(VaultError::Unavailable);
-                }
-            };
-            payload.extend_from_slice(piece);
+        Ok(descriptor)
+    }
+
+    fn file_gap_status(&self, head: [u8; 32]) -> Result<VaultStatus, VaultError> {
+        let waiting = self.waiting_entries(head)?;
+        if waiting.blocked {
+            Ok(VaultStatus::Incomplete {
+                entries: waiting.entries,
+            })
+        } else {
+            Ok(VaultStatus::Ok)
         }
-        let size = u64::try_from(payload.len()).map_err(|_| VaultError::Unavailable)?;
-        if size != descriptor.size {
-            payload.clear();
+    }
+
+    fn waiting_entries(&self, commit: [u8; 32]) -> Result<WaitingEntries, VaultError> {
+        let commit_plain = self.read_object(commit)?;
+        let root_id = read_commit_root(&commit_plain).map_err(|_| VaultError::Unavailable)?;
+        let mut entries = Vec::new();
+        let blocked = match self.read_object_optional(root_id)? {
+            None => true,
+            Some(plain) => {
+                let directory = decode_directory(&plain).map_err(|_| VaultError::Unavailable)?;
+                self.collect_waiting(&directory, "", 0, &mut entries)?;
+                !entries.is_empty()
+            }
+        };
+        entries.sort();
+        entries.dedup();
+        Ok(WaitingEntries { blocked, entries })
+    }
+
+    fn collect_waiting(
+        &self,
+        directory: &DecodedDirectory,
+        prefix: &str,
+        depth: usize,
+        entries: &mut Vec<String>,
+    ) -> Result<(), VaultError> {
+        if depth > 64 {
             return Err(VaultError::Unavailable);
         }
-        Ok(payload)
+        for entry in &directory.entries {
+            let path = if prefix.is_empty() {
+                entry.name.clone()
+            } else {
+                format!("{prefix}/{}", entry.name)
+            };
+            match entry.kind {
+                ChildKind::File => {
+                    if self.file_is_waiting(entry, &directory.dir_id)? {
+                        entries.push(path);
+                    }
+                }
+                ChildKind::Directory => match self.read_object_optional(entry.object_id)? {
+                    None => entries.push(path),
+                    Some(plain) => {
+                        let child =
+                            decode_directory(&plain).map_err(|_| VaultError::Unavailable)?;
+                        self.collect_waiting(&child, &path, depth + 1, entries)?;
+                    }
+                },
+            }
+        }
+        Ok(())
+    }
+
+    fn file_is_waiting(
+        &self,
+        entry: &DirectoryEntry,
+        parent_dir: &[u8; 16],
+    ) -> Result<bool, VaultError> {
+        let Some(plain) = self.read_object_optional(entry.object_id)? else {
+            return Ok(true);
+        };
+        let descriptor = decode_file_descriptor(&plain).map_err(|_| VaultError::Unavailable)?;
+        if descriptor.parent_dir_id != *parent_dir {
+            return Err(VaultError::Unavailable);
+        }
+        for chunk_id in descriptor.chunks {
+            if self.read_object_optional(chunk_id)?.is_none() {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 
     fn ensure_unlocked(&self) -> Result<(), VaultError> {
@@ -357,7 +498,10 @@ impl Session {
     }
 
     fn write_genesis(&mut self) -> Result<[u8; 32], VaultError> {
-        let directory_object = random_array()?;
+        let dir_id: [u8; 16] = random_array()?;
+        let directory_object: [u8; 32] = random_array()?;
+        let directory = encode_directory(&dir_id, None, &[]).map_err(directory_error)?;
+        self.put_plaintext(directory_object, &directory)?;
         self.write_commit(None, directory_object)
     }
 
@@ -469,9 +613,76 @@ impl Session {
     }
 }
 
+struct WaitingEntries {
+    blocked: bool,
+    entries: Vec<String>,
+}
+
 struct LoadedDirectory {
     dir_id: [u8; 16],
     entries: Vec<DirectoryEntry>,
+}
+
+impl FileChunks<'_> {
+    /// The next verified chunk, or `Ok(None)` after the last chunk when the
+    /// byte count matches the descriptor.
+    pub fn next_chunk(&mut self) -> Result<Option<Vec<u8>>, VaultError> {
+        if self.failed {
+            return Err(VaultError::Unavailable);
+        }
+        if self.index == self.chunks.len() {
+            if self.total != self.size {
+                self.failed = true;
+                return Err(VaultError::Unavailable);
+            }
+            return Ok(None);
+        }
+        let chunk_id = self.chunks[self.index];
+        if self.seen.contains(&chunk_id) {
+            self.failed = true;
+            return Err(VaultError::Unavailable);
+        }
+        let plain = match self.session.read_object(chunk_id) {
+            Ok(plain) => plain,
+            Err(error) => {
+                self.failed = true;
+                return Err(error);
+            }
+        };
+        let ordinal = match u32::try_from(self.index) {
+            Ok(ordinal) => ordinal,
+            Err(_) => {
+                self.failed = true;
+                return Err(VaultError::Unavailable);
+            }
+        };
+        let piece = match chunk_payload(&plain, &self.file_id, ordinal) {
+            Ok(piece) => piece.to_vec(),
+            Err(_) => {
+                self.failed = true;
+                return Err(VaultError::Unavailable);
+            }
+        };
+        let added = match u64::try_from(piece.len()) {
+            Ok(added) => added,
+            Err(_) => {
+                self.failed = true;
+                return Err(VaultError::Unavailable);
+            }
+        };
+        let Some(total) = self.total.checked_add(added) else {
+            self.failed = true;
+            return Err(VaultError::Unavailable);
+        };
+        if total > self.size {
+            self.failed = true;
+            return Err(VaultError::Unavailable);
+        }
+        self.seen.push(chunk_id);
+        self.index += 1;
+        self.total = total;
+        Ok(Some(piece))
+    }
 }
 
 fn plan_directory_entries(
@@ -795,6 +1006,74 @@ mod tests {
             .object_id
     }
 
+    fn read_all_chunks(session: &Session, name: &str) -> Result<Vec<u8>, VaultError> {
+        let mut stream = session.read_file_chunks(name)?;
+        let mut out = Vec::new();
+        loop {
+            match stream.next_chunk()? {
+                Some(chunk) => out.extend(chunk),
+                None => return Ok(out),
+            }
+        }
+    }
+
+    fn assert_manifest_faults(session: &Session, folder: &Path, over: &[u8]) {
+        use crate::file_body::{encode_chunk, encode_file_descriptor};
+        let descriptor_id = entry_object(session, "over");
+        let descriptor_path = folder.join(hex_id(&descriptor_id));
+        let original_descriptor = fs::read(&descriptor_path).expect("descriptor bytes");
+        let plain = session
+            .read_object(descriptor_id)
+            .expect("descriptor plain");
+        let descriptor = decode_file_descriptor(&plain).expect("descriptor");
+        let root = session.root.as_ref().expect("unlocked");
+
+        let truncated = encode_file_descriptor(
+            &descriptor.file_id,
+            &descriptor.parent_dir_id,
+            u64::try_from(over.len()).expect("size"),
+            &descriptor.chunks[..1],
+        )
+        .expect("truncated manifest");
+        let sealed =
+            seal_object(root, &session.vault_id, &descriptor_id, &truncated).expect("seal");
+        fs::write(&descriptor_path, &sealed).expect("write truncated");
+        let mut stream = session.read_file_chunks("over").expect("truncated stream");
+        let first = stream
+            .next_chunk()
+            .expect("truncated first")
+            .expect("chunk");
+        assert_eq!(first.len(), MAX_CHUNK_PAYLOAD);
+        assert_eq!(stream.next_chunk().err(), Some(VaultError::Unavailable));
+
+        let duplicated = encode_file_descriptor(
+            &descriptor.file_id,
+            &descriptor.parent_dir_id,
+            descriptor.size,
+            &[descriptor.chunks[0], descriptor.chunks[0]],
+        )
+        .expect("duplicated manifest");
+        let sealed =
+            seal_object(root, &session.vault_id, &descriptor_id, &duplicated).expect("seal");
+        fs::write(&descriptor_path, &sealed).expect("write duplicated");
+        let mut stream = session.read_file_chunks("over").expect("duplicated stream");
+        assert!(stream.next_chunk().expect("dup first").is_some());
+        assert_eq!(stream.next_chunk().err(), Some(VaultError::Unavailable));
+
+        fs::write(&descriptor_path, &original_descriptor).expect("restore descriptor");
+        let chunk_id = descriptor.chunks[0];
+        let chunk_path = folder.join(hex_id(&chunk_id));
+        let original_chunk = fs::read(&chunk_path).expect("chunk bytes");
+        let reordered = encode_chunk(&descriptor.file_id, 1, b"nope").expect("wrong ordinal");
+        let sealed =
+            seal_object(root, &session.vault_id, &chunk_id, &reordered).expect("seal chunk");
+        fs::write(&chunk_path, &sealed).expect("write reordered");
+        let mut stream = session.read_file_chunks("over").expect("reordered stream");
+        assert_eq!(stream.next_chunk().err(), Some(VaultError::Unavailable));
+        fs::write(&chunk_path, &original_chunk).expect("restore chunk");
+        assert_eq!(read_all_chunks(session, "over").expect("restored"), over);
+    }
+
     fn chunk_ids(session: &Session, name: &str) -> Vec<[u8; 32]> {
         let plain = session
             .read_object(entry_object(session, name))
@@ -1053,6 +1332,21 @@ mod tests {
         assert_eq!(opened.read_file("empty").expect("empty again"), b"");
         assert_eq!(opened.read_file("exact").expect("exact again"), exact);
         assert_eq!(opened.read_file("over").expect("over again"), over);
+        assert_eq!(
+            read_all_chunks(&opened, "empty").expect("stream empty"),
+            b""
+        );
+        assert_eq!(
+            read_all_chunks(&opened, "exact").expect("stream exact"),
+            exact
+        );
+        let mut streamed = opened.read_file_chunks("over").expect("stream over");
+        let first = streamed.next_chunk().expect("first").expect("some first");
+        assert_eq!(first.len(), MAX_CHUNK_PAYLOAD);
+        let second = streamed.next_chunk().expect("second").expect("some second");
+        assert_eq!(second, &[0x33]);
+        assert_eq!(streamed.next_chunk().expect("done"), None);
+        assert_manifest_faults(&opened, &scratch.0, &over);
 
         let old_descriptor = entry_object(&opened, "empty");
         let old_bytes = fs::read(scratch.0.join(hex_id(&old_descriptor))).expect("old descriptor");
@@ -1096,16 +1390,34 @@ mod tests {
         );
 
         let over_chunks = chunk_ids(&opened, "over");
-        fs::remove_file(scratch.0.join(hex_id(&over_chunks[1]))).expect("drop second chunk");
+        let missing_path = scratch.0.join(hex_id(&over_chunks[1]));
+        let missing_bytes = fs::read(&missing_path).expect("second chunk bytes");
+        fs::remove_file(&missing_path).expect("drop second chunk");
         assert_eq!(
             opened.read_file("over").err(),
             Some(VaultError::Unavailable)
         );
+        let mut missing_stream = opened.read_file_chunks("over").expect("open stream");
+        assert!(
+            missing_stream
+                .next_chunk()
+                .expect("verified prefix")
+                .is_some()
+        );
         assert_eq!(
-            opened.status().expect("missing chunk is not a bad object"),
-            VaultStatus::Ok
+            missing_stream.next_chunk().err(),
+            Some(VaultError::Unavailable)
+        );
+        assert_eq!(
+            opened.status().expect("missing chunk"),
+            VaultStatus::Incomplete {
+                entries: vec!["over".to_string()]
+            }
         );
         assert_eq!(opened.read_file("empty").expect("other file"), b"replaced");
+        fs::write(&missing_path, &missing_bytes).expect("chunk returns");
+        assert_eq!(opened.status().expect("chunk arrived"), VaultStatus::Ok);
+        assert_eq!(opened.read_file("over").expect("over restored"), over);
 
         let mut tampered = fs::read(scratch.0.join(hex_id(&over_chunks[0]))).expect("first chunk");
         let last = tampered.len() - 1;
@@ -1139,7 +1451,7 @@ mod tests {
         fs::remove_file(scratch.0.join(hex_id(&genesis))).expect("remove parent");
         assert_eq!(
             session.status().expect("incomplete"),
-            VaultStatus::Incomplete
+            VaultStatus::Incomplete { entries: vec![] }
         );
         assert!(scratch.0.join(hex_id(&child)).is_file());
     }

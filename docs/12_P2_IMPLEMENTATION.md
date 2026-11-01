@@ -2,7 +2,7 @@
 
 - Created / updated: **2026-10-31 JST**
 - Milestone: **P2.1 — synthetic local-only Rust workspace**
-- Status: **multi-chunk files and explicit replace on rustc 1.99.1 (2026-11-01); not a production vault**
+- Status: **missing chunks are Incomplete; streaming reads verify each chunk (2026-11-01); not a production vault**
 - Governing decisions: [P1.5 review](11_SECURITY_DESIGN_REVIEW.md), [ADR-0004](decisions/0004-security-review-scope-and-safety.md)
 - Previous plans: [Roadmap](05_IMPLEMENTATION_ROADMAP.md) and [P1.4 test plan](10_TEST_AND_FUZZ_PLAN.md)
 
@@ -17,7 +17,7 @@ Set up a reproducible local-only Rust workspace with **untrusted public format s
 | `eidoron-crypto` | Cryptographic boundary | Primitive KATs; key schedule; object AEAD under ObjectKey. `status()` is still NotImplemented | Import, a production-ready flag |
 | `eidoron-format` | Public byte parsing | Fixed lengths, magic/version/suite/resource checks, only `Untrusted*` types | AEAD verification, CBOR schemas, full graph integrity |
 | `eidoron-provider-local` | Synthetic local object storage | Memory HashMap and a caller-chosen directory of lowercase-hex files. Identical opaque bytes retry; different bytes are rejected. `create` removes leftover temp names; `open` does not. Crash safety is not claimed | Durable crash recovery, cloud provider, CAS, multi-device |
-| `eidoron-vault` | Session/vault integration | `create_vault`, `open_vault`, `Session::status`, `select_head`, directory list, multi-chunk files, `replace_file`, `delete_entry`, lock on drop | Import, subdirectory listing, unreachable-object deletion, export, recovery |
+| `eidoron-vault` | Session/vault integration | `create_vault`, `open_vault`, `Session::status` (`Incomplete` names files waiting on chunks), `read_file_chunks`, `select_head`, multi-chunk files, `replace_file`, `delete_entry`, lock on drop | Import, subdirectory listing, unreachable-object deletion, export, recovery |
 | `eidoron-test-vectors` | Synthetic deterministic test harness | Shape checks, key-schedule constants, and one object-AEAD ciphertext from `scripts/object_aead_kat.py` | Commit-graph fixtures |
 
 P2.1 had no external crates. P2.2 M1 added the five pinned RustCrypto crates listed in the checkpoint below; UniFFI is still absent. The P2.1 lockfile was path-only. The current `Cargo.lock` was regenerated with `cargo generate-lockfile` after those dependencies were added.
@@ -178,6 +178,12 @@ On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked 
 ## Multi-chunk file checkpoint (2026-11-01)
 
 `append_directory` writes an empty subdirectory object and links it. A file entry in that call is rejected and the folder is unchanged. `write_file` stores an empty payload as zero chunks. Larger payloads split at 1,048,554 bytes, up to 8192 chunks. Each chunk is checked on write and again on read. `read_file` returns plaintext only after every chunk verifies. A missing chunk is `Unavailable` while `status` stays `Ok`. A tampered chunk fails decrypt, so `status` is `Unavailable` and no plaintext is returned. `replace_file` adds a new descriptor and commit and leaves the old descriptor bytes in place. `write_file` on that name is `DuplicateName`. `delete_entry` unlinks the name and leaves the descriptor file. `select_head` does not change the folder. Conflict-copy bytes stay put. No new ciphertext vector was added.
+
+On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (58 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0.
+
+## Missing-chunk status and streaming read (2026-11-01)
+
+A sole head, or the selected head while forked, is `Incomplete` when a reachable file's descriptor or chunk file is absent. `entries` lists those file names. Putting the chunk file back makes a sole complete head `Ok`. A ciphertext that is present but does not decrypt is `Unavailable` for `status` and for both read APIs. `read_file_chunks` returns a chunk only after AEAD and `check_chunk_identity` accept that manifest index. Truncation, a repeated chunk id, and a wrong ordinal are `Unavailable` and that chunk is not returned. `read_file` still returns the whole file or nothing. Genesis writes an empty root directory object. Unreachable objects are not deleted. Conflict-copy bytes stay put. No new ciphertext vector was added.
 
 On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (58 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0.
 

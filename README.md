@@ -19,8 +19,8 @@ Eidoron は、端末側で暗号化してからクラウドへ同期する、プ
 
 - Phase 0 / Foundation documentation — **completed (2026-10-31)**
 - Phase 1 / Threat-model and crypto protocol review — **P1.1–P1.5 documents and internal review recorded; implementation/independent audit unverified**
-- Rust code — **a selected head can store a directory and a multi-chunk file. Replace and unlink leave old objects on disk. No cloud API is called**
-- Phase 2 / Rust Vault — **append only under `select_head`, which stays in memory. `eidoron_crypto::status()` is still `NotImplemented`**
+- Rust code — **a missing chunk is Incomplete with the file name; a tampered chunk is Unavailable. Reads yield a chunk only after it verifies. No cloud API is called**
+- Phase 2 / Rust Vault — **append only under `select_head`, which stays in memory. Empty files have zero chunks. `eidoron_crypto::status()` is still `NotImplemented`**
 - Production readiness — **none**
 
 ## Documentation index
