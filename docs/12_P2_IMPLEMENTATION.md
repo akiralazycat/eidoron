@@ -2,7 +2,7 @@
 
 - Created / updated: **2026-10-31 JST**
 - Milestone: **P2.1 — synthetic local-only Rust workspace**
-- Status: **forks stay visible; metadata leakage recorded without padding (2026-11-01); not a production vault**
+- Status: **last-chunk padding; GC policy only (2026-11-01); not a production vault**
 - Governing decisions: [P1.5 review](11_SECURITY_DESIGN_REVIEW.md), [ADR-0004](decisions/0004-security-review-scope-and-safety.md)
 - Previous plans: [Roadmap](05_IMPLEMENTATION_ROADMAP.md) and [P1.4 test plan](10_TEST_AND_FUZZ_PLAN.md)
 
@@ -193,9 +193,15 @@ On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked 
 
 On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (65 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0.
 
+## Last-chunk padding (2026-11-01)
+
+Short last chunks are zero-padded to a power-of-two bucket of at least 4096 bytes, capped at 1,048,550. The unpadded length is authenticated in the chunk and checked against the descriptor size. Padding bytes must be zero. Streaming returns only the unpadded bytes. Schema `0x00` is rejected. [15_GC_POLICY.md](15_GC_POLICY.md) is policy only.
+
+On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (67 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0.
+
 ## Next bounded work unit
 
-List the entries of one subdirectory under the selected head. Do not pad, delete unreachable objects, add a two-head content view, a cloud account, or an SDK. Remote rewrap, biometrics, and a Shadow password stay out of v1. Further crash claims need a fault-injection test that does not exist yet.
+List the entries of one subdirectory under the selected head. Do not add a garbage collector, dummy chunks, a two-head content view, a cloud account, or an SDK. Remote rewrap, biometrics, and a Shadow password stay out of v1. Further crash claims need a fault-injection test that does not exist yet.
 
 ## Security / release state
 

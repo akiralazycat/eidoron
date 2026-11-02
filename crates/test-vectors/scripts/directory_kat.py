@@ -94,7 +94,41 @@ def file_descriptor_body() -> bytes:
     return bytes([0x03, 0x00]) + payload
 
 
+# Chunk schema 0x01. Header is 26 bytes: kind, schema, file id, ordinal, true length.
+# Payload is padded to a power of two with a 4096-byte floor, capped at the
+# plaintext budget. Schema 0x00 is the dropped unpadded layout.
+CHUNK_HEADER = 26
+MAX_CHUNK_PAYLOAD = 1_048_576 - CHUNK_HEADER
+PAD_FLOOR = 4096
+
+
+def padded_len(true_len: int) -> int:
+    if true_len <= 0 or true_len > MAX_CHUNK_PAYLOAD:
+        raise SystemExit("payload length is not a chunk")
+    if true_len == MAX_CHUNK_PAYLOAD:
+        return true_len
+    padded = 1 << (true_len - 1).bit_length()
+    if padded < PAD_FLOOR:
+        padded = PAD_FLOOR
+    if padded > MAX_CHUNK_PAYLOAD:
+        padded = MAX_CHUNK_PAYLOAD
+    return padded
+
+
 def chunk_body() -> bytes:
+    true_len = len(CHUNK_PAYLOAD)
+    pad = padded_len(true_len)
+    return (
+        bytes([0x04, 0x01])
+        + FILE_ID
+        + (0).to_bytes(4, "big")
+        + true_len.to_bytes(4, "big")
+        + CHUNK_PAYLOAD
+        + bytes(pad - true_len)
+    )
+
+
+def unpadded_v0_chunk() -> bytes:
     return bytes([0x04, 0x00]) + FILE_ID + (0).to_bytes(4, "big") + CHUNK_PAYLOAD
 
 
@@ -107,6 +141,7 @@ def main() -> None:
     rust_array("DIRECTORY_FILE_TXT", directory_body())
     rust_array("FILE_DESCRIPTOR_SYNTHETIC", file_descriptor_body())
     rust_array("CHUNK_SYNTHETIC", chunk_body())
+    rust_array("CHUNK_UNPADDED_V0", unpadded_v0_chunk())
 
 
 if __name__ == "__main__":

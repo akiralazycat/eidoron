@@ -37,6 +37,7 @@ Eidoron は、端末側で暗号化してからクラウドへ同期する、プ
 - [Storage, deniability research and sync](docs/03_STORAGE_SYNC.md)
 - [S3 conditional HEAD experiment plan](docs/13_S3_CONDITIONAL_HEAD.md)
 - [Metadata visible in a sync folder](docs/14_METADATA_LEAKAGE.md)
+- [Unreachable-object cleanup policy](docs/15_GC_POLICY.md)
 - [Product and intelligence-inspired UX](docs/04_PRODUCT_UX.md)
 - [Implementation phases and acceptance gates](docs/05_IMPLEMENTATION_ROADMAP.md)
 - [Progress ledger and AI handoff](docs/06_PROGRESS_HANDOFF.md)

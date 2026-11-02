@@ -675,7 +675,14 @@ impl FileChunks<'_> {
                 return Err(VaultError::Unavailable);
             }
         };
-        let piece = match chunk_payload(&plain, &self.file_id, ordinal) {
+        let true_len = match self.true_payload_len() {
+            Ok(true_len) => true_len,
+            Err(error) => {
+                self.failed = true;
+                return Err(error);
+            }
+        };
+        let piece = match chunk_payload(&plain, &self.file_id, ordinal, true_len) {
             Ok(piece) => piece.to_vec(),
             Err(_) => {
                 self.failed = true;
@@ -701,6 +708,35 @@ impl FileChunks<'_> {
         self.index += 1;
         self.total = total;
         Ok(Some(piece))
+    }
+
+    fn true_payload_len(&self) -> Result<usize, VaultError> {
+        let count = self.chunks.len();
+        if count == 0 || self.index >= count {
+            return Err(VaultError::Unavailable);
+        }
+        let size = usize::try_from(self.size).map_err(|_| VaultError::Unavailable)?;
+        let preceding = self
+            .index
+            .checked_mul(crate::file_body::MAX_CHUNK_PAYLOAD)
+            .ok_or(VaultError::Unavailable)?;
+        if self.index + 1 < count {
+            let full = preceding
+                .checked_add(crate::file_body::MAX_CHUNK_PAYLOAD)
+                .ok_or(VaultError::Unavailable)?;
+            if size < full {
+                return Err(VaultError::Unavailable);
+            }
+            return Ok(crate::file_body::MAX_CHUNK_PAYLOAD);
+        }
+        if size < preceding {
+            return Err(VaultError::Unavailable);
+        }
+        let last = size - preceding;
+        if last == 0 || last > crate::file_body::MAX_CHUNK_PAYLOAD {
+            return Err(VaultError::Unavailable);
+        }
+        Ok(last)
     }
 }
 
@@ -1434,8 +1470,8 @@ mod tests {
         let truncated = crate::file_body::encode_file_descriptor(
             &descriptor.file_id,
             &descriptor.parent_dir_id,
-            u64::try_from(payload.len()).expect("len") + 1,
-            &descriptor.chunks,
+            descriptor.size,
+            &[],
         )
         .expect("encode");
         let sealed = seal_object(
@@ -1447,11 +1483,8 @@ mod tests {
         .expect("seal");
         fs::write(scratch.0.join(hex_id(&descriptor_id)), &sealed).expect("overwrite");
         let mut stream = session.read_file_chunks("note").expect("stream");
-        assert_eq!(
-            stream.next_chunk().expect("verified chunk").expect("bytes"),
-            payload
-        );
         assert_eq!(stream.next_chunk().err(), Some(VaultError::Unavailable));
+        let _ = payload;
     }
 
     #[test]
@@ -1476,8 +1509,8 @@ mod tests {
         .expect("seal");
         fs::write(scratch.0.join(hex_id(&descriptor_id)), &sealed).expect("overwrite");
         let mut stream = session.read_file_chunks("note").expect("stream");
-        assert_eq!(stream.next_chunk().expect("first").expect("bytes"), payload);
         assert_eq!(stream.next_chunk().err(), Some(VaultError::Unavailable));
+        let _ = payload;
     }
 
     #[test]
@@ -1576,7 +1609,8 @@ mod tests {
     }
 
     fn assert_names_hide_plaintext(folder: &Path, payload: &[u8], chunks: &mut Vec<Vec<u8>>) {
-        let chunk_len = eidoron_format::OBJECT_PREFIX_LEN + 22 + payload.len() + 16;
+        let bucket = crate::file_body::padded_payload_len(payload.len()).expect("bucket");
+        let chunk_len = eidoron_format::OBJECT_PREFIX_LEN + 26 + bucket + 16;
         for entry in fs::read_dir(folder).expect("dir") {
             let entry = entry.expect("entry");
             let name = entry.file_name().into_string().expect("utf8 name");
@@ -1597,6 +1631,96 @@ mod tests {
                 chunks.push(bytes);
             }
         }
+    }
+
+    #[test]
+    fn last_chunk_padding_is_a_bucket_and_is_not_yielded() {
+        let scratch = Scratch::new();
+        let mut session = create_vault(&scratch.0, "synthetic-vault-pass").expect("create");
+        let genesis = only_head(&session);
+        session.select_head(genesis).expect("select");
+        let head = session.write_file(genesis, "one", &[0x61]).expect("one");
+        let head = session
+            .write_file(head, "floor", &[0x62; 4096])
+            .expect("floor");
+        session
+            .write_file(head, "over-floor", &[0x63; 4097])
+            .expect("over");
+        let overhead = eidoron_format::OBJECT_PREFIX_LEN + 26 + 16;
+        assert_eq!(chunk_file_len(&session, &scratch.0, "one"), overhead + 4096);
+        assert_eq!(
+            chunk_file_len(&session, &scratch.0, "floor"),
+            overhead + 4096
+        );
+        assert_eq!(
+            chunk_file_len(&session, &scratch.0, "over-floor"),
+            overhead + 8192
+        );
+        let mut stream = session.read_file_chunks("one").expect("stream");
+        assert_eq!(stream.next_chunk().expect("chunk").expect("bytes"), &[0x61]);
+        assert_eq!(stream.next_chunk().expect("end"), None);
+
+        let chunk_id = chunk_ids(&session, "one")[0];
+        let chunk_path = scratch.0.join(hex_id(&chunk_id));
+        let original_chunk = fs::read(&chunk_path).expect("chunk bytes");
+        let mut dirty = session.read_object(chunk_id).expect("plain");
+        dirty[26 + 1] = 0x01;
+        let sealed = seal_object(
+            session.root.as_ref().expect("root"),
+            &session.vault_id,
+            &chunk_id,
+            &dirty,
+        )
+        .expect("reseal pad");
+        fs::write(&chunk_path, &sealed).expect("write pad");
+        assert_eq!(
+            session.read_file("one").err(),
+            Some(VaultError::Unavailable)
+        );
+        assert_eq!(
+            session
+                .read_file_chunks("one")
+                .expect("stream")
+                .next_chunk()
+                .err(),
+            Some(VaultError::Unavailable)
+        );
+        fs::write(&chunk_path, &original_chunk).expect("restore chunk");
+
+        let descriptor_id = entry_object(&session, "one");
+        let descriptor = descriptor_of(&session, "one");
+        let bad_len = crate::file_body::encode_file_descriptor(
+            &descriptor.file_id,
+            &descriptor.parent_dir_id,
+            2,
+            &descriptor.chunks,
+        )
+        .expect("bad size");
+        let sealed = seal_object(
+            session.root.as_ref().expect("root"),
+            &session.vault_id,
+            &descriptor_id,
+            &bad_len,
+        )
+        .expect("reseal size");
+        fs::write(scratch.0.join(hex_id(&descriptor_id)), &sealed).expect("write size");
+        assert_eq!(
+            session.read_file("one").err(),
+            Some(VaultError::Unavailable)
+        );
+        assert_eq!(
+            session
+                .read_file_chunks("one")
+                .expect("stream")
+                .next_chunk()
+                .err(),
+            Some(VaultError::Unavailable)
+        );
+    }
+
+    fn chunk_file_len(session: &Session, folder: &Path, name: &str) -> usize {
+        let id = chunk_ids(session, name)[0];
+        fs::metadata(folder.join(hex_id(&id))).expect("meta").len() as usize
     }
 
     #[test]

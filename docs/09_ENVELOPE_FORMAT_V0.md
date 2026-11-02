@@ -110,7 +110,7 @@ Each object is **immutable**: modification creates a new random ID, freshly deri
 - `0x02`: **directory**: deterministic CBOR payload.
 - `0x03`: **file descriptor**: deterministic CBOR payload.
 - `0x04`: **file chunk**: `file_id:16 || ordinal:u32be || file_bytes`.
-- **Implementation limit (2026-10-31, M5.22):** `check_chunk_identity` compares one decrypted chunk's 16-byte `file_id` and big-endian `ordinal` with the caller's expectation. A mismatch of either field is the same error. Payload bytes are not compared, and no object store is scanned. Kind other than `0x04` is not a chunk. A short body or a schema other than `0x00` is unreadable.
+- **Implementation limit (2026-10-31, M5.22; schema bumped 2026-11-01):** `check_chunk_identity` compares one decrypted chunk's 16-byte `file_id` and big-endian `ordinal` with the caller's expectation. A mismatch of either field is the same error. The current chunk schema is `0x01`: a 26-byte header includes the unpadded payload length, and a short last chunk is zero-padded to a power-of-two bucket with a 4096-byte floor. Schema `0x00` (no length, no padding) is rejected. This tree has not shipped a reader for it. Payload bytes are not compared by the identity check. Kind other than `0x04` is not a chunk.
 
 On read, `kind` and `body_schema` MUST match the expected reference type. File-chunk `file_id` and `ordinal` MUST match the authenticated descriptor. A directory entry MUST match the child's authenticated logical ID and parent reference; no unauthenticated traversal into a caller-selected ciphertext object.
 
