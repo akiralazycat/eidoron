@@ -1,0 +1,19 @@
+[package]
+name = "eidoron-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "eidoron"
+path = "src/main.rs"
+
+[dependencies]
+eidoron-vault = { path = "../vault" }
+clap = { version = "=4.5.53", features = ["derive"] }
+rpassword = "=7.4.0"
+
+[lints]
+workspace = true

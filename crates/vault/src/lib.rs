@@ -45,6 +45,8 @@ pub enum VaultError {
     WrongHead,
     RejectedName,
     DuplicateName,
+    /// The new header was not the one left on disk, or it does not open with the new password.
+    PasswordNotApplied,
 }
 
 impl std::fmt::Display for VaultError {
@@ -58,6 +60,7 @@ impl std::fmt::Display for VaultError {
             Self::WrongHead => "wrong head",
             Self::RejectedName => "rejected name",
             Self::DuplicateName => "duplicate name",
+            Self::PasswordNotApplied => "password change did not take effect",
         })
     }
 }

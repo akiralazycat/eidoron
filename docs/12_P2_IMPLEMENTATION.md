@@ -205,6 +205,12 @@ On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked 
 
 On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (71 tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0.
 
+## Password check and CLI (2026-11-02)
+
+`change_password` re-reads `vault.header` after the rename. If the new password does not open it, or if another header won before the rename, the error is `PasswordNotApplied`. Conflict copies of the header are listed and not opened. The `eidoron` binary in `crates/cli` drives create, status, select-head, ls, put, replace, rm, get, and passwd. The password is not a command-line argument. Power-of-two buckets are unchanged. No GC code was added.
+
+On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (77 tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0.
+
 ## Next bounded work unit
 
 List the entries of one subdirectory under the selected head. Do not add a garbage collector until the confirmation wording exists, and do not add dummy chunks, a two-head content view, a cloud account, or an SDK. Remote rewrap, biometrics, and a Shadow password stay out of v1. Further crash claims need a fault-injection test that does not exist yet.

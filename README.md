@@ -19,7 +19,7 @@ Eidoron は、端末側で暗号化してからクラウドへ同期する、プ
 
 - Phase 0 / Foundation documentation — **completed (2026-10-31)**
 - Phase 1 / Threat-model and crypto protocol review — **P1.1–P1.5 documents and internal review recorded; implementation/independent audit unverified**
-- Rust code — **two sessions can fork a folder; password change rewraps the same root and does not revoke a saved header. No cloud API is called**
+- Rust code — **`eidoron` can create, read, and rewrap a local folder. A lost password race is reported separately. No cloud API is called**
 - Phase 2 / Rust Vault — **append only under `select_head`, which stays in memory. Empty files have zero chunks. `eidoron_crypto::status()` is still `NotImplemented`**
 - Production readiness — **none**
 
@@ -47,7 +47,7 @@ Eidoron は、端末側で暗号化してからクラウドへ同期する、プ
 - [P1.5 scope and security restrictions — ADR-0004](docs/decisions/0004-security-review-scope-and-safety.md)
 - [Research and validation references](docs/07_RESEARCH_VALIDATION.md)
 
-**Next work unit:** list one subdirectory under the selected head. Do not delete unreachable objects, add a two-head content view, or add a cloud account. Open questions are listed in [docs/PLAN.md](docs/PLAN.md).
+**Next work unit:** list one subdirectory under the selected head. Do not delete unreachable objects, add a two-head content view, or add a cloud account. Password change confirms the header left on disk. Open questions are listed in [docs/PLAN.md](docs/PLAN.md).
 
 License: [MIT](LICENSE). An open-source license is not a security certification.
 
