@@ -121,11 +121,14 @@ impl Session {
     /// Only the exact name `vault.header` is read or replaced. A sync-tool copy
     /// such as `vault.header (1)` is left as it is and is never opened.
     ///
-    /// If the header on disk no longer matches the one just checked, this returns
-    /// [`VaultError::Unavailable`] and does not rename. Two devices that both pass
-    /// the check before either renames: the last rename wins. Both headers wrap
-    /// the same root, so the files stay readable with whichever header remains.
-    /// The other new password will not open that remaining header.
+    /// If another header is already in `vault.header` when the rename is attempted,
+    /// this does not rename and returns [`VaultError::PasswordNotApplied`].
+    /// After a rename, that exact name is read again and opened with the new
+    /// password. If it does not open, the same error is returned. Two devices
+    /// that both pass the check: the last rename wins, and the other caller
+    /// sees that the new password did not take effect. Both headers wrap the
+    /// same root when both started from the same header, so the files stay
+    /// readable with whichever header remains. The error text has no secret.
     ///
     /// This does not revoke a copy of the previous header. Anyone who kept those
     /// bytes can still unwrap the same root with the old password. Remote rewrap
@@ -170,9 +173,73 @@ impl Session {
         let wrapped = seal_root(&wrap_new, &new_nonce, memory, &next[..88]);
         next[88..].copy_from_slice(&wrapped);
         inspect_untrusted_header(&next).map_err(|_| VaultError::Unavailable)?;
-        store
-            .replace_vault_header(&previous, &next)
-            .map_err(store_error)?;
+        run_before_header_replace(&self.folder);
+        match store.replace_vault_header(&previous, &next) {
+            Ok(()) => {}
+            Err(eidoron_provider_local::StoreError::ExistingObjectDiffers) => {
+                return Err(VaultError::PasswordNotApplied);
+            }
+            Err(error) => return Err(store_error(error)),
+        }
+        run_after_header_rename(&self.folder);
+        self.header_opens_with(new_password)
+    }
+
+    /// Names such as `vault.header (1)` or `vault.header (conflicted copy)`.
+    ///
+    /// These are not opened and are not chosen over `vault.header`.
+    pub fn header_conflict_copies(&self) -> Result<Vec<String>, VaultError> {
+        let store = TempDirStore::open(&self.folder).map_err(store_error)?;
+        let mut names = Vec::new();
+        for entry in store.scan().map_err(store_error)? {
+            let FolderEntry::ConflictCopy(name) = entry else {
+                continue;
+            };
+            if name.to_ascii_lowercase().contains("vault.header") {
+                names.push(name);
+            }
+        }
+        names.sort();
+        Ok(names)
+    }
+
+    fn header_opens_with(&self, password: &str) -> Result<(), VaultError> {
+        let store = TempDirStore::open(&self.folder).map_err(store_error)?;
+        let Some(bytes) = store.read_vault_header().map_err(store_error)? else {
+            return Err(VaultError::PasswordNotApplied);
+        };
+        if bytes.len() != HEADER_LEN {
+            return Err(VaultError::PasswordNotApplied);
+        }
+        let mut header = [0u8; HEADER_LEN];
+        header.copy_from_slice(&bytes);
+        let parsed = match inspect_untrusted_header(&header) {
+            Ok(parsed) => parsed,
+            Err(_) => return Err(VaultError::PasswordNotApplied),
+        };
+        if parsed.vault_id != self.vault_id {
+            return Err(VaultError::PasswordNotApplied);
+        }
+        let memory = self.root.as_ref().ok_or(VaultError::Locked)?;
+        let params = KdfParams {
+            memory_kib: parsed.argon_m_cost_kib,
+            iterations: parsed.argon_t_cost,
+            lanes: parsed.argon_lanes,
+        };
+        let salt = header_salt(&header);
+        let nonce = header_nonce(&header);
+        let raw = match derive_raw_pwd_key(password, &salt, params) {
+            Ok(raw) => raw,
+            Err(_) => return Err(VaultError::PasswordNotApplied),
+        };
+        let wrap = derive_wrap_key(&raw, &parsed.vault_id);
+        let disk_root = match open_root(&wrap, &nonce, &header[88..136], &header[..88]) {
+            Ok(root) => root,
+            Err(_) => return Err(VaultError::PasswordNotApplied),
+        };
+        if !same_root(memory, &disk_root) {
+            return Err(VaultError::PasswordNotApplied);
+        }
         Ok(())
     }
 
@@ -923,6 +990,39 @@ fn write_header_prefix(
     header[56..60].copy_from_slice(&params.iterations.to_be_bytes());
     header[60..64].copy_from_slice(&params.lanes.to_be_bytes());
     header[64..88].copy_from_slice(nonce);
+}
+
+fn run_before_header_replace(folder: &Path) {
+    #[cfg(test)]
+    BEFORE_HEADER_REPLACE.with(|cell| {
+        if let Some(hook) = cell.borrow_mut().take() {
+            hook(folder);
+        }
+    });
+    #[cfg(not(test))]
+    let _ = folder;
+}
+
+fn run_after_header_rename(folder: &Path) {
+    #[cfg(test)]
+    AFTER_HEADER_RENAME.with(|cell| {
+        if let Some(hook) = cell.borrow_mut().take() {
+            hook(folder);
+        }
+    });
+    #[cfg(not(test))]
+    let _ = folder;
+}
+
+#[cfg(test)]
+type HeaderHook = Box<dyn FnOnce(&Path)>;
+
+#[cfg(test)]
+thread_local! {
+    static BEFORE_HEADER_REPLACE: std::cell::RefCell<Option<HeaderHook>> =
+        const { std::cell::RefCell::new(None) };
+    static AFTER_HEADER_RENAME: std::cell::RefCell<Option<HeaderHook>> =
+        const { std::cell::RefCell::new(None) };
 }
 
 fn same_root(left: &RootSecret, right: &RootSecret) -> bool {
@@ -1797,6 +1897,113 @@ mod tests {
     fn chunk_file_len(session: &Session, folder: &Path, name: &str) -> usize {
         let id = chunk_ids(session, name)[0];
         fs::metadata(folder.join(hex_id(&id))).expect("meta").len() as usize
+    }
+
+    #[test]
+    fn header_conflict_copies_are_listed_and_not_opened() {
+        let scratch = Scratch::new();
+        let session = create_vault(&scratch.0, "synthetic-vault-pass").expect("create");
+        let real = fs::read(scratch.0.join(VAULT_HEADER_NAME)).expect("header");
+        let numbered = scratch.0.join("vault.header (1)");
+        let conflicted = scratch.0.join("vault.header (conflicted copy)");
+        fs::write(&numbered, b"numbered-copy").expect("numbered");
+        fs::write(&conflicted, b"conflicted-copy").expect("conflicted");
+        fs::write(scratch.0.join("notes (1)"), b"not-a-header").expect("notes");
+        assert_eq!(session.status().expect("status"), VaultStatus::Ok);
+        assert_eq!(
+            session.header_conflict_copies().expect("copies"),
+            vec![
+                "vault.header (1)".to_string(),
+                "vault.header (conflicted copy)".to_string(),
+            ]
+        );
+        drop(session);
+        let opened = open_vault(&scratch.0, "synthetic-vault-pass").expect("real header");
+        assert_eq!(opened.vault_id().expect("id").len(), 16);
+        assert_eq!(
+            fs::read(&numbered).expect("numbered stays"),
+            b"numbered-copy"
+        );
+        assert_eq!(
+            fs::read(&conflicted).expect("conflicted stays"),
+            b"conflicted-copy"
+        );
+        assert_eq!(
+            fs::read(scratch.0.join(VAULT_HEADER_NAME)).expect("real"),
+            real
+        );
+        fs::remove_file(scratch.0.join(VAULT_HEADER_NAME)).expect("hide real");
+        assert_eq!(
+            open_vault(&scratch.0, "synthetic-vault-pass").err(),
+            Some(VaultError::Unavailable)
+        );
+    }
+
+    struct ClearHeaderHooks;
+
+    impl Drop for ClearHeaderHooks {
+        fn drop(&mut self) {
+            BEFORE_HEADER_REPLACE.with(|slot| {
+                slot.borrow_mut().take();
+            });
+            AFTER_HEADER_RENAME.with(|slot| {
+                slot.borrow_mut().take();
+            });
+        }
+    }
+
+    #[test]
+    fn password_change_reports_when_another_header_wins_before_rename() {
+        let scratch = Scratch::new();
+        let mut session = create_vault(&scratch.0, "synthetic-vault-pass").expect("create");
+        let previous = fs::read(scratch.0.join(VAULT_HEADER_NAME)).expect("header");
+        let _clear = ClearHeaderHooks;
+        BEFORE_HEADER_REPLACE.with(|slot| {
+            let previous = previous.clone();
+            *slot.borrow_mut() = Some(Box::new(move |folder| {
+                let mut other = previous.clone();
+                other[32] ^= 0x01;
+                fs::write(folder.join(VAULT_HEADER_NAME), &other).expect("other header");
+            }));
+        });
+        let err = session
+            .change_password("synthetic-vault-pass", "synthetic-new-pass")
+            .expect_err("lost before rename");
+        assert_eq!(err, VaultError::PasswordNotApplied);
+        assert!(!err.to_string().contains("synthetic"));
+        let mut expected = previous.clone();
+        expected[32] ^= 0x01;
+        assert_eq!(
+            fs::read(scratch.0.join(VAULT_HEADER_NAME)).expect("stays"),
+            expected
+        );
+    }
+
+    #[test]
+    fn password_change_reports_when_the_new_header_does_not_remain() {
+        let scratch = Scratch::new();
+        let mut session = create_vault(&scratch.0, "synthetic-vault-pass").expect("create");
+        let previous = fs::read(scratch.0.join(VAULT_HEADER_NAME)).expect("header");
+        let _clear = ClearHeaderHooks;
+        AFTER_HEADER_RENAME.with(|slot| {
+            let previous = previous.clone();
+            *slot.borrow_mut() = Some(Box::new(move |folder| {
+                fs::write(folder.join(VAULT_HEADER_NAME), &previous).expect("restore old");
+            }));
+        });
+        let err = session
+            .change_password("synthetic-vault-pass", "synthetic-new-pass")
+            .expect_err("lost the race");
+        assert_eq!(err, VaultError::PasswordNotApplied);
+        let text = err.to_string();
+        assert_eq!(text, "password change did not take effect");
+        assert!(!text.contains("synthetic"));
+        drop(session);
+        assert!(open_vault(&scratch.0, "synthetic-vault-pass").is_ok());
+        assert_eq!(
+            open_vault(&scratch.0, "synthetic-new-pass").err(),
+            Some(VaultError::Unavailable)
+        );
     }
 
     #[test]

@@ -6,6 +6,7 @@ members = [
   "crates/provider-local",
   "crates/vault",
   "crates/test-vectors",
+  "crates/cli",
 ]
 
 [workspace.package]

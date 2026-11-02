@@ -1,9 +1,9 @@
 # Progress, Decisions and AI Handoff
 
 - Created: **2026-10-31 JST**
-- Last updated: **2026-10-31 JST**
-- Current baseline: **local password rewrap; two-session sync tests; power-of-two buckets kept**
-- Implementation status: **71 tests pass; NO CLOUD API, NO CREDENTIALS; no GC code; crash claim limited to tested temp cleanup**
+- Last updated: **2026-11-02 JST**
+- Current baseline: **CLI plus post-rename password check; power-of-two buckets kept; no GC code**
+- Implementation status: **77 tests pass; NO CLOUD API, NO CREDENTIALS; no GC code; crash claim limited to tested temp cleanup**
 - Foundation branch: `docs/foundation-master-plan-20261031` (merged)
 - Foundation PR: https://github.com/akiralazycat/eidoron/pull/1 — merged into main on 2026-10-31 JST
 - Foundation merge commit: `7835fd40e5608f5525db9dcb625b30ddff395e7e`
@@ -97,6 +97,9 @@
 | 2026-11-01 | padding | Last chunk padded to power-of-two, floor 4096 | Full chunks stay at 1,048,550. Schema 0x00 is not read. No dummy chunks. No mtime rounding. GC policy is [15_GC_POLICY.md](15_GC_POLICY.md) with no deletion code |
 | 2026-11-02 | #23 adopted | Keep power-of-two buckets; no GC code yet | Confirmation UX wording does not exist, so no sweeper |
 | 2026-11-02 | local rewrap | New salt and wrap of the same root | Old header copy still opens. `vault.header (1)` is not selected. Last rename wins if two devices both pass the check |
+| 2026-11-02 | #24 adopted | Power-of-two buckets stay; last rename wins; never open `vault.header (1)`; no GC code | Confirmation UX wording still does not exist |
+| 2026-11-02 | password check | Re-read `vault.header` after the rename | `PasswordNotApplied` when the new password does not open that file. Display text has no secret |
+| 2026-11-02 | CLI | Binary `eidoron` in `crates/cli` | Password is a hidden prompt, or `EIDORON_PASSWORD` / stdin for tests. Not a command-line argument |
 
 ## Immediate next task — list one subdirectory
 
@@ -106,6 +109,15 @@
 - A copied `vault.header` still unwraps the root. Do not describe password change as revocation.
 - Still out of v1: remote rewrap, biometrics, a Shadow password, a two-head content view, and any crash claim beyond the tested temp-file cleanup.
 - Explicit scope restrictions: no credentials in git, no real user data, no Shadow/Specter claim.
+
+## Session log — 2026-11-02 password check and CLI
+
+- Started from main at `870eeea` (PR #24 merged).
+- Adopted the #24 recommendations: power-of-two buckets stay, the last header rename wins, `vault.header (1)` is never opened or chosen, and there is still no GC code.
+- `change_password` re-reads the exact `vault.header` after the rename and checks that the new password unwraps the in-memory root. A mismatch, including another device's header winning before the rename, is `VaultError::PasswordNotApplied` (`password change did not take effect`). A wrong current password is still `Unavailable`.
+- `Session::header_conflict_copies` lists conflict-copy names that contain `vault.header`. It does not read them. `notes (1)` is not in that list.
+- `crates/cli` builds the `eidoron` binary: create, status, select-head, ls, put, replace, rm, get, passwd. Messages for conflict, incomplete, header copies, and unavailable go to stderr. File bytes go to stdout or `--output`. The selected head is stored outside the vault folder. `clap` 4.5.53 and `rpassword` 7.4.0 are pinned in `Cargo.lock`.
+- `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (77 tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0 on rustc 1.99.1.
 
 ## Session log — 2026-11-02 two devices and local rewrap
 
