@@ -2,7 +2,7 @@
 
 - Created / updated: **2026-10-31 JST**
 - Milestone: **P2.1 — synthetic local-only Rust workspace**
-- Status: **last-chunk padding; GC policy only (2026-11-01); not a production vault**
+- Status: **local rewrap and two-session tests (2026-11-02); not a production vault**
 - Governing decisions: [P1.5 review](11_SECURITY_DESIGN_REVIEW.md), [ADR-0004](decisions/0004-security-review-scope-and-safety.md)
 - Previous plans: [Roadmap](05_IMPLEMENTATION_ROADMAP.md) and [P1.4 test plan](10_TEST_AND_FUZZ_PLAN.md)
 
@@ -199,9 +199,15 @@ Short last chunks are zero-padded to a power-of-two bucket of at least 4096 byte
 
 On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (67 unit tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0.
 
+## Two devices and local rewrap (2026-11-02)
+
+`crates/vault/tests/two_devices.rs` covers a fork, an append on one head, a delayed chunk, conflict-copy bytes, and reopening both folders. `change_password` rewraps the same root under a new salt. A saved copy of the old header still opens. No GC code was added.
+
+On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (71 tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0.
+
 ## Next bounded work unit
 
-List the entries of one subdirectory under the selected head. Do not add a garbage collector, dummy chunks, a two-head content view, a cloud account, or an SDK. Remote rewrap, biometrics, and a Shadow password stay out of v1. Further crash claims need a fault-injection test that does not exist yet.
+List the entries of one subdirectory under the selected head. Do not add a garbage collector until the confirmation wording exists, and do not add dummy chunks, a two-head content view, a cloud account, or an SDK. Remote rewrap, biometrics, and a Shadow password stay out of v1. Further crash claims need a fault-injection test that does not exist yet.
 
 ## Security / release state
 

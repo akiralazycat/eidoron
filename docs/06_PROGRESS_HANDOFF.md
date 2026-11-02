@@ -2,8 +2,8 @@
 
 - Created: **2026-10-31 JST**
 - Last updated: **2026-10-31 JST**
-- Current baseline: **last-chunk padding; no dummy chunks; no mtime rounding; GC is a policy doc only**
-- Implementation status: **67 unit tests pass; NO CLOUD API, NO CREDENTIALS; no automatic object deletion; crash claim limited to tested temp cleanup**
+- Current baseline: **local password rewrap; two-session sync tests; power-of-two buckets kept**
+- Implementation status: **71 tests pass; NO CLOUD API, NO CREDENTIALS; no GC code; crash claim limited to tested temp cleanup**
 - Foundation branch: `docs/foundation-master-plan-20261031` (merged)
 - Foundation PR: https://github.com/akiralazycat/eidoron/pull/1 — merged into main on 2026-10-31 JST
 - Foundation merge commit: `7835fd40e5608f5525db9dcb625b30ddff395e7e`
@@ -95,14 +95,25 @@
 | 2026-11-01 | status fork | `Conflict` always lists every head | Waiting files on any head are attached with that head id. `Incomplete` is a single head only |
 | 2026-11-01 | metadata | Sync-folder leakage note | [14_METADATA_LEAKAGE.md](14_METADATA_LEAKAGE.md). Names are 64 hex. Updated the same day for last-chunk buckets |
 | 2026-11-01 | padding | Last chunk padded to power-of-two, floor 4096 | Full chunks stay at 1,048,550. Schema 0x00 is not read. No dummy chunks. No mtime rounding. GC policy is [15_GC_POLICY.md](15_GC_POLICY.md) with no deletion code |
+| 2026-11-02 | #23 adopted | Keep power-of-two buckets; no GC code yet | Confirmation UX wording does not exist, so no sweeper |
+| 2026-11-02 | local rewrap | New salt and wrap of the same root | Old header copy still opens. `vault.header (1)` is not selected. Last rename wins if two devices both pass the check |
 
 ## Immediate next task — list one subdirectory
 
 **Do not** create a Google Drive, Dropbox, R2, or S3 account for this repository, and do not add a vendor SDK.
-- Do not add a garbage collector. The rule is [15_GC_POLICY.md](15_GC_POLICY.md).
-- Do not add dummy chunks or round mtimes.
+- Do not add a garbage collector until the confirmation wording in [15_GC_POLICY.md](15_GC_POLICY.md) exists in a UI.
+- Do not add dummy chunks, round mtimes, or change the power-of-two buckets.
+- A copied `vault.header` still unwraps the root. Do not describe password change as revocation.
 - Still out of v1: remote rewrap, biometrics, a Shadow password, a two-head content view, and any crash claim beyond the tested temp-file cleanup.
 - Explicit scope restrictions: no credentials in git, no real user data, no Shadow/Specter claim.
+
+## Session log — 2026-11-02 two devices and local rewrap
+
+- Started from main at `e85b433` (PR #23 merged).
+- Kept power-of-two buckets. Did not add GC code.
+- `crates/vault/tests/two_devices.rs` opens two sessions. One case copies files between folders. Both writes become `Conflict` with both heads. Appending on the selected head leaves the other head's files unchanged. A missing chunk is `Incomplete` and becomes `Ok` when the file is copied in. `notes (1)` and `notes (conflicted copy)` stay byte-identical. Reopening both folders reports the same head set.
+- `change_password` derives a new salt with Argon2id and wraps the same root. Objects are not re-encrypted. The header replace uses temp, `sync_all`, and rename, and refuses if the bytes changed after the check. `vault.header (1)` is not opened. Putting the previous header back lets the old password read the same file. That limitation is stated on the function and in the envelope note.
+- `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (71 tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0 on rustc 1.99.1.
 
 ## Session log — 2026-11-01 last-chunk padding
 

@@ -72,6 +72,22 @@ impl TempDirStore {
         write_via_temp(&self.root, &path, &[0u8; 32], bytes)
     }
 
+    /// Replace `vault.header` when its current bytes are still `expected`.
+    ///
+    /// The new bytes go through a temp file, `sync_all`, and rename. A mismatch
+    /// leaves the existing header in place. This does not read or write a
+    /// conflict copy such as `vault.header (1)`.
+    pub fn replace_vault_header(&self, expected: &[u8], bytes: &[u8]) -> Result<(), StoreError> {
+        let path = self.root.join(VAULT_HEADER_NAME);
+        match fs::read(&path) {
+            Ok(current) if current == expected => {
+                write_via_temp(&self.root, &path, &[0u8; 32], bytes)
+            }
+            Ok(_) => Err(StoreError::ExistingObjectDiffers),
+            Err(_) => Err(StoreError::Io),
+        }
+    }
+
     pub fn read_vault_header(&self) -> Result<Option<Vec<u8>>, StoreError> {
         match fs::read(self.root.join(VAULT_HEADER_NAME)) {
             Ok(bytes) => Ok(Some(bytes)),
@@ -402,6 +418,31 @@ mod tests {
         assert_eq!(
             reopened.scan().expect("scan after open"),
             vec![FolderEntry::LeftoverTemp(".eidoron-tmp-later".to_string())]
+        );
+    }
+
+    #[test]
+    fn replacing_the_header_leaves_a_conflict_copy_untouched() {
+        let scratch = Scratch::new();
+        let store = scratch.store();
+        store.write_vault_header(b"header-v1").expect("create");
+        let copy = store.root().join("vault.header (1)");
+        fs::write(&copy, b"sync-copy").expect("copy");
+        store
+            .replace_vault_header(b"header-v1", b"header-v2")
+            .expect("replace");
+        assert_eq!(
+            store.read_vault_header().expect("read").expect("some"),
+            b"header-v2"
+        );
+        assert_eq!(fs::read(&copy).expect("copy remains"), b"sync-copy");
+        assert_eq!(
+            store.replace_vault_header(b"header-v1", b"header-v3"),
+            Err(StoreError::ExistingObjectDiffers)
+        );
+        assert_eq!(
+            store.read_vault_header().expect("read").expect("still"),
+            b"header-v2"
         );
     }
 

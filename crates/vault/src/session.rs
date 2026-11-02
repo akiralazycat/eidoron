@@ -113,6 +113,69 @@ impl Session {
         self.root.take();
     }
 
+    /// Change the password that unwraps the root already in this session.
+    ///
+    /// Argon2id runs again with a new salt. The root bytes stay the same, so
+    /// chunk and object keys do not change and file bodies are not rewritten.
+    /// The new `vault.header` is written with a temp file, `sync_all`, and rename.
+    /// Only the exact name `vault.header` is read or replaced. A sync-tool copy
+    /// such as `vault.header (1)` is left as it is and is never opened.
+    ///
+    /// If the header on disk no longer matches the one just checked, this returns
+    /// [`VaultError::Unavailable`] and does not rename. Two devices that both pass
+    /// the check before either renames: the last rename wins. Both headers wrap
+    /// the same root, so the files stay readable with whichever header remains.
+    /// The other new password will not open that remaining header.
+    ///
+    /// This does not revoke a copy of the previous header. Anyone who kept those
+    /// bytes can still unwrap the same root with the old password. Remote rewrap
+    /// is not implemented.
+    pub fn change_password(&mut self, current: &str, new_password: &str) -> Result<(), VaultError> {
+        let memory = self.root.as_ref().ok_or(VaultError::Locked)?;
+        let store = TempDirStore::open(&self.folder).map_err(store_error)?;
+        let Some(previous) = store.read_vault_header().map_err(store_error)? else {
+            return Err(VaultError::Unavailable);
+        };
+        if previous.len() != HEADER_LEN {
+            return Err(VaultError::Unavailable);
+        }
+        let mut header = [0u8; HEADER_LEN];
+        header.copy_from_slice(&previous);
+        let parsed = inspect_untrusted_header(&header).map_err(|_| VaultError::Unavailable)?;
+        if parsed.vault_id != self.vault_id {
+            return Err(VaultError::Unavailable);
+        }
+        let params = KdfParams {
+            memory_kib: parsed.argon_m_cost_kib,
+            iterations: parsed.argon_t_cost,
+            lanes: parsed.argon_lanes,
+        };
+        let salt = header_salt(&header);
+        let nonce = header_nonce(&header);
+        let raw =
+            derive_raw_pwd_key(current, &salt, params).map_err(|_| VaultError::Unavailable)?;
+        let wrap = derive_wrap_key(&raw, &parsed.vault_id);
+        let disk_root = open_root(&wrap, &nonce, &header[88..136], &header[..88])
+            .map_err(|_| VaultError::Unavailable)?;
+        if !same_root(memory, &disk_root) {
+            return Err(VaultError::Unavailable);
+        }
+        let new_salt = random_array()?;
+        let new_nonce = random_array()?;
+        let raw_new = derive_raw_pwd_key(new_password, &new_salt, params)
+            .map_err(|_| VaultError::Unavailable)?;
+        let wrap_new = derive_wrap_key(&raw_new, &self.vault_id);
+        let mut next = [0u8; HEADER_LEN];
+        write_header_prefix(&mut next, &self.vault_id, &new_salt, &new_nonce, params);
+        let wrapped = seal_root(&wrap_new, &new_nonce, memory, &next[..88]);
+        next[88..].copy_from_slice(&wrapped);
+        inspect_untrusted_header(&next).map_err(|_| VaultError::Unavailable)?;
+        store
+            .replace_vault_header(&previous, &next)
+            .map_err(store_error)?;
+        Ok(())
+    }
+
     pub fn vault_id(&self) -> Result<[u8; 16], VaultError> {
         self.ensure_unlocked()?;
         Ok(self.vault_id)
@@ -786,7 +849,7 @@ pub fn create_vault(folder: &Path, password: &str) -> Result<Session, VaultError
     let raw = derive_raw_pwd_key(password, &salt, params).map_err(|_| VaultError::Unavailable)?;
     let wrap = derive_wrap_key(&raw, &vault_id);
     let mut header = [0u8; HEADER_LEN];
-    write_header_prefix(&mut header, &vault_id, &salt, &wrap_nonce);
+    write_header_prefix(&mut header, &vault_id, &salt, &wrap_nonce, params);
     let wrapped = seal_root(&wrap, &wrap_nonce, &root, &header[..88]);
     header[88..].copy_from_slice(&wrapped);
     inspect_untrusted_header(&header).map_err(|_| VaultError::Unavailable)?;
@@ -802,6 +865,10 @@ pub fn create_vault(folder: &Path, password: &str) -> Result<Session, VaultError
 }
 
 /// Open a vault. Password failure and header failure use the same error.
+///
+/// Only the exact file `vault.header` is read. A conflict copy is not a
+/// substitute when that file is missing, and it is not preferred when both
+/// are present.
 pub fn open_vault(folder: &Path, password: &str) -> Result<Session, VaultError> {
     let store = TempDirStore::create(folder).map_err(store_error)?;
     let Some(header_bytes) = store.read_vault_header().map_err(store_error)? else {
@@ -845,16 +912,25 @@ fn write_header_prefix(
     vault_id: &[u8; 16],
     salt: &[u8; 16],
     nonce: &[u8; 24],
+    params: KdfParams,
 ) {
     header[0..8].copy_from_slice(b"EIDORON\0");
     header[12..14].copy_from_slice(&1u16.to_be_bytes());
     header[16..32].copy_from_slice(vault_id);
     header[32..48].copy_from_slice(salt);
     header[48..52].copy_from_slice(&0x13u32.to_be_bytes());
-    header[52..56].copy_from_slice(&MEMORY_KIB.to_be_bytes());
-    header[56..60].copy_from_slice(&ITERATIONS.to_be_bytes());
-    header[60..64].copy_from_slice(&LANES.to_be_bytes());
+    header[52..56].copy_from_slice(&params.memory_kib.to_be_bytes());
+    header[56..60].copy_from_slice(&params.iterations.to_be_bytes());
+    header[60..64].copy_from_slice(&params.lanes.to_be_bytes());
     header[64..88].copy_from_slice(nonce);
+}
+
+fn same_root(left: &RootSecret, right: &RootSecret) -> bool {
+    let mut diff = 0u8;
+    for (a, b) in left.as_bytes().iter().zip(right.as_bytes()) {
+        diff |= a ^ b;
+    }
+    diff == 0
 }
 
 fn header_salt(header: &[u8; HEADER_LEN]) -> [u8; 16] {
