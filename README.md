@@ -19,7 +19,7 @@ Eidoron は、端末側で暗号化してからクラウドへ同期する、プ
 
 - Phase 0 / Foundation documentation — **completed (2026-10-31)**
 - Phase 1 / Threat-model and crypto protocol review — **P1.1–P1.5 documents and internal review recorded; implementation/independent audit unverified**
-- Rust code — **a fork stays visible when a file is waiting on a chunk. Object names are random hex. Chunk length still tracks payload size. No cloud API is called**
+- Rust code — **two sessions can fork a folder; password change rewraps the same root and does not revoke a saved header. No cloud API is called**
 - Phase 2 / Rust Vault — **append only under `select_head`, which stays in memory. Empty files have zero chunks. `eidoron_crypto::status()` is still `NotImplemented`**
 - Production readiness — **none**
 
