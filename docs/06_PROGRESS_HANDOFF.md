@@ -2,8 +2,8 @@
 
 - Created: **2026-10-31 JST**
 - Last updated: **2026-11-02 JST**
-- Current baseline: **CLI plus post-rename password check; power-of-two buckets kept; no GC code**
-- Implementation status: **77 tests pass; NO CLOUD API, NO CREDENTIALS; no GC code; crash claim limited to tested temp cleanup**
+- Current baseline: **stdin passwords only; passwd asks once; manual Drive notes; no GC code**
+- Implementation status: **79 tests pass; NO CLOUD API, NO CREDENTIALS; no GC code; crash claim limited to tested temp cleanup**
 - Foundation branch: `docs/foundation-master-plan-20261031` (merged)
 - Foundation PR: https://github.com/akiralazycat/eidoron/pull/1 — merged into main on 2026-10-31 JST
 - Foundation merge commit: `7835fd40e5608f5525db9dcb625b30ddff395e7e`
@@ -99,7 +99,9 @@
 | 2026-11-02 | local rewrap | New salt and wrap of the same root | Old header copy still opens. `vault.header (1)` is not selected. Last rename wins if two devices both pass the check |
 | 2026-11-02 | #24 adopted | Power-of-two buckets stay; last rename wins; never open `vault.header (1)`; no GC code | Confirmation UX wording still does not exist |
 | 2026-11-02 | password check | Re-read `vault.header` after the rename | `PasswordNotApplied` when the new password does not open that file. Display text has no secret |
-| 2026-11-02 | CLI | Binary `eidoron` in `crates/cli` | Password is a hidden prompt, or `EIDORON_PASSWORD` / stdin for tests. Not a command-line argument |
+| 2026-11-02 | CLI | Binary `eidoron` in `crates/cli` | Password is a hidden prompt. Not a command-line argument |
+| 2026-11-02 | password input | `EIDORON_PASSWORD` is ignored | `EIDORON_PASSWORD_STDIN` reads one line per prompt. `passwd` asks for the current password once |
+| 2026-11-02 | manual Drive notes | [16_MANUAL_GDRIVE_TEST.md](16_MANUAL_GDRIVE_TEST.md) | Procedure only. No Drive process is started. No extra guarantee |
 
 ## Immediate next task — list one subdirectory
 
@@ -109,6 +111,15 @@
 - A copied `vault.header` still unwraps the root. Do not describe password change as revocation.
 - Still out of v1: remote rewrap, biometrics, a Shadow password, a two-head content view, and any crash claim beyond the tested temp-file cleanup.
 - Explicit scope restrictions: no credentials in git, no real user data, no Shadow/Specter claim.
+
+## Session log — 2026-11-02 password prompts and manual Drive notes
+
+- Started from main at `b27f148` (PR #25 merged).
+- `EIDORON_PASSWORD` and `EIDORON_NEW_PASSWORD` are not read. If they are set, stderr says they are ignored and does not print the value. Automation sets `EIDORON_PASSWORD_STDIN` and writes one stdin line per prompt. Passwords are still not command-line arguments.
+- `passwd` asks `current password:`, then `new password:`, then `repeat new password:`. It does not ask `password:` first. A mismatch leaves `vault.header` unchanged.
+- [16_MANUAL_GDRIVE_TEST.md](16_MANUAL_GDRIVE_TEST.md) is a two-device Drive for desktop procedure: create, read, sync, fork, missing chunk, concurrent `passwd`. It tells the reader to record what happened and not to treat the procedure as a guarantee beyond the local tests.
+- No GC code. Conflict copies are not deleted. The selected head is still outside the sync folder. Power-of-two buckets are unchanged.
+- `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (79 tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0 on rustc 1.99.1.
 
 ## Session log — 2026-11-02 password check and CLI
 

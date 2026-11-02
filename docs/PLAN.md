@@ -1,7 +1,7 @@
 # Eidoron 開発計画
 
 - 作成: **2026-10-31**
-- 最終更新: **2026-11-02（パスワード確認と最小 CLI）**
+- 最終更新: **2026-11-02（パスワード入力と手動確認手順）**
 - 進捗の正本: [06_PROGRESS_HANDOFF.md](06_PROGRESS_HANDOFF.md)
 - 検証記録: [12_P2_IMPLEMENTATION.md](12_P2_IMPLEMENTATION.md)
 - この文書は作業順の計画である。暗号化の正しさ、監査、本番利用の許可ではない。
@@ -31,6 +31,7 @@
 | M6.30 最後のチャンクのパディング | 完了。短い最後のチャンクだけを 4096 以上の 2 の冪へゼロで伸ばす。本当の長さは AEAD の中。schema `0x00` は読まない。回収方針は [15_GC_POLICY.md](15_GC_POLICY.md) のみで、削除コードは無い |
 | M6.31 二端末とローカル再ラップ | 完了。二つの `Session` とフォルダコピーで分岐・遅延・衝突コピーを見る。パスワード変更は salt を新しくして root を包み直す。古いヘッダのコピーは無効にしない |
 | M6.32 パスワード確認と CLI | 完了。変更後に `vault.header` を読み直し、新しいパスワードで開かなければ `PasswordNotApplied`。`vault.header (1)` は警告するだけで開かない。`eidoron` コマンドは対話のパスワード入力 |
+| M6.33 パスワード入力と手動手順 | 完了。`EIDORON_PASSWORD` は使わない。`passwd` は現在のパスワードを一度だけ聞く。Drive での手順は [16_MANUAL_GDRIVE_TEST.md](16_MANUAL_GDRIVE_TEST.md) で、試験の範囲を超えて保証しない |
 
 ## 1. 何を作っているか
 
@@ -162,7 +163,8 @@ Rust 1.99.1 がある環境で同じコマンドを実行した。
 29. **完了（2026-11-01）。** 履歴がフォークしているとき、`status` は常に `Conflict` で全 head を返す。欠けたファイルは `waiting` に載せ、各要素は head の ID と名前を持つ。`Incomplete` は head が一つのときだけである。欠け・改ざん・マニフェストの短縮・重複・順違いは別々のテストである。同期フォルダから見える名前と長さは [14_METADATA_LEAKAGE.md](14_METADATA_LEAKAGE.md)。
 30. **完了（2026-11-01）。** 最後のチャンクだけを、4096 バイト以上の次の 2 の冪へゼロで伸ばす。2 の冪が 1,048,550 を超えるときはその上限で止める。満杯のチャンクはそのままである。空ファイルはチャンクを作らない。本当の長さはチャンク平文の `u32` と、記述子のサイズの両方にあり、AEAD の内側である。両者が違う、またはパディングがゼロでないときは `Unavailable`。逐次読みはパディングを返さない。チャンク schema は `0x01`。schema `0x00` は読まない。このリポジトリは未出荷なので、古いチャンクの読み戻しはしない。オブジェクトの削除コードは足していない。方針は [15_GC_POLICY.md](15_GC_POLICY.md)。
 31. **完了（2026-11-02）。** `crates/vault/tests/two_devices.rs` は、二つの `Session` と、ファイルコピーで遅れて届く同期を模す。両方の書き込みは `Conflict` で両方の head を返す。選んだ head への追記は、もう一方の既存ファイルを変えない。チャンクが遅れると `Incomplete`、届くと `Ok`。`notes (1)` と `conflicted copy` は読まれず、バイト列も変わらない。開き直した二つのフォルダは同じ head 集合を見る。`change_password` は新しい salt で Argon2id をやり直し、同じ root を包み直す。オブジェクトは再暗号化しない。ヘッダは temp + `sync_all` + rename で、いま読んだバイトと一致するときだけ置き換える。`vault.header (1)` は開かない。古いヘッダを戻すと、古いパスワードで同じファイルが読める。遠隔の再ラップはしない。
-32. **完了（2026-11-02）。** `change_password` はリネームのあと、正確な `vault.header` を読み直し、新しいパスワードで同じ root が開くことを確かめる。開かなければ `PasswordNotApplied`（表示は `password change did not take effect`）。リネーム前に別のバイトが既にあるときも置き換えず、同じエラーを返す。最後にリネームしたヘッダが残る。`header_conflict_copies` は `vault.header (1)` と `vault.header (conflicted copy)` の名前だけを返し、中身は読まない。`notes (1)` は含めない。回収コードは足していない。バケットは 2 の冪のままである。`crates/cli` の `eidoron` は、パスワードを引数にせず、隠したプロンプトで読む。テストは `EIDORON_PASSWORD` と、`EIDORON_PASSWORD_STDIN` の 1 行だけを使う。選択した head はボルトの外（`EIDORON_STATE_DIR` など）に書く。分岐していて保存した head が現在の head でないときは、head を列挙し、書き込みの前に `select-head` を求める。
+32. **完了（2026-11-02）。** `change_password` はリネームのあと、正確な `vault.header` を読み直し、新しいパスワードで同じ root が開くことを確かめる。開かなければ `PasswordNotApplied`（表示は `password change did not take effect`）。リネーム前に別のバイトが既にあるときも置き換えず、同じエラーを返す。最後にリネームしたヘッダが残る。`header_conflict_copies` は `vault.header (1)` と `vault.header (conflicted copy)` の名前だけを返し、中身は読まない。`notes (1)` は含めない。回収コードは足していない。バケットは 2 の冪のままである。`crates/cli` の `eidoron` は、パスワードを引数にせず、隠したプロンプトで読む。選択した head はボルトの外（`EIDORON_STATE_DIR` など）に書く。分岐していて保存した head が現在の head でないときは、head を列挙し、書き込みの前に `select-head` を求める。
+33. **完了（2026-11-02）。** `EIDORON_PASSWORD` と `EIDORON_NEW_PASSWORD` は読まない。設定されていれば、値を出さずに無視すると stderr に書く。自動化は `EIDORON_PASSWORD_STDIN` を立て、プロンプト 1 回につき stdin を 1 行読む。`passwd` のプロンプトは `current password:`、`new password:`、`repeat new password:` の順で、その前に `password:` は出ない。確認が違えばヘッダは変わらない。手順は [16_MANUAL_GDRIVE_TEST.md](16_MANUAL_GDRIVE_TEST.md)。Drive を起動するテストは無く、手順はローカル試験が示した範囲だけを期待する。
 
 ## 5. この計画のあいだ、手を付けないもの
 
@@ -186,6 +188,7 @@ Rust 1.99.1 がある環境で同じコマンドを実行した。
 - **パディング（2026-11-01、所有者判断）。** 最後のチャンクだけを、4096 以上の 2 の冪へ伸ばす。ダミーチャンクは足さない。mtime は丸めない。schema `0x00` のチャンクは読まない。
 - **#23 の推奨を採用（2026-11-02）。** バケットは 2 の冪のままにする。回収コードは、確認画面の文言ができるまで足さない。
 - **#24 の推奨を採用（2026-11-02）。** バケットは 2 の冪のままである。二台が同時にパスワードを変えたときは、後のリネームが残る。`vault.header (1)` は自動では選ばない。回収コードは、確認画面の文言ができるまで足さない。
+- **#25 のつづき（2026-11-02）。** 通常のビルドは `EIDORON_PASSWORD` をパスワードとして使わない。stdin は `EIDORON_PASSWORD_STDIN` があるときだけ読む。人がパイプしただけで隠したプロンプトが置き換わらないようにするためである。
 
 ## 未決
 

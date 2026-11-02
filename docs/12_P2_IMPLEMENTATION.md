@@ -211,6 +211,12 @@ On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked 
 
 On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (77 tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0.
 
+## Password prompts and a manual Drive note (2026-11-02)
+
+`EIDORON_PASSWORD` is not a password source. `EIDORON_PASSWORD_STDIN` supplies one line per prompt for tests. `passwd` reads the current password once. [16_MANUAL_GDRIVE_TEST.md](16_MANUAL_GDRIVE_TEST.md) records a human procedure and the limits of the local tests. No GC code was added.
+
+On rustc 1.99.1, `cargo fmt --all -- --check`, `cargo test --workspace --locked --offline` (79 tests) and `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exited 0.
+
 ## Next bounded work unit
 
 List the entries of one subdirectory under the selected head. Do not add a garbage collector until the confirmation wording exists, and do not add dummy chunks, a two-head content view, a cloud account, or an SDK. Remote rewrap, biometrics, and a Shadow password stay out of v1. Further crash claims need a fault-injection test that does not exist yet.

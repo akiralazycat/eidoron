@@ -19,7 +19,7 @@ Eidoron は、端末側で暗号化してからクラウドへ同期する、プ
 
 - Phase 0 / Foundation documentation — **completed (2026-10-31)**
 - Phase 1 / Threat-model and crypto protocol review — **P1.1–P1.5 documents and internal review recorded; implementation/independent audit unverified**
-- Rust code — **`eidoron` can create, read, and rewrap a local folder. A lost password race is reported separately. No cloud API is called**
+- Rust code — **`eidoron` reads a hidden password prompt, not an environment variable. No cloud API is called**
 - Phase 2 / Rust Vault — **append only under `select_head`, which stays in memory. Empty files have zero chunks. `eidoron_crypto::status()` is still `NotImplemented`**
 - Production readiness — **none**
 
@@ -38,6 +38,7 @@ Eidoron は、端末側で暗号化してからクラウドへ同期する、プ
 - [S3 conditional HEAD experiment plan](docs/13_S3_CONDITIONAL_HEAD.md)
 - [Metadata visible in a sync folder](docs/14_METADATA_LEAKAGE.md)
 - [Unreachable-object cleanup policy](docs/15_GC_POLICY.md)
+- [Manual Google Drive folder check](docs/16_MANUAL_GDRIVE_TEST.md)
 - [Product and intelligence-inspired UX](docs/04_PRODUCT_UX.md)
 - [Implementation phases and acceptance gates](docs/05_IMPLEMENTATION_ROADMAP.md)
 - [Progress ledger and AI handoff](docs/06_PROGRESS_HANDOFF.md)
@@ -47,7 +48,7 @@ Eidoron は、端末側で暗号化してからクラウドへ同期する、プ
 - [P1.5 scope and security restrictions — ADR-0004](docs/decisions/0004-security-review-scope-and-safety.md)
 - [Research and validation references](docs/07_RESEARCH_VALIDATION.md)
 
-**Next work unit:** list one subdirectory under the selected head. Do not delete unreachable objects, add a two-head content view, or add a cloud account. Password change confirms the header left on disk. Open questions are listed in [docs/PLAN.md](docs/PLAN.md).
+**Next work unit:** list one subdirectory under the selected head. Do not delete unreachable objects, add a two-head content view, or add a cloud account. A manual Drive procedure is in [docs/16_MANUAL_GDRIVE_TEST.md](docs/16_MANUAL_GDRIVE_TEST.md). Open questions are listed in [docs/PLAN.md](docs/PLAN.md).
 
 License: [MIT](LICENSE). An open-source license is not a security certification.
 
