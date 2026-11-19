@@ -23,6 +23,16 @@ Eidoron は、端末側で暗号化してからクラウドへ同期する、プ
 - Phase 2 / Rust Vault — **append only under `select_head`, which stays in memory. Empty files have zero chunks. `eidoron_crypto::status()` is still `NotImplemented`**
 - Production readiness — **none**
 
+## ローカル検証
+
+リポジトリのルートで、`rust-toolchain.toml` が指定するRust 1.99.1と、コミット済みの `Cargo.lock` を使います。
+
+```bash
+cargo test --locked --workspace
+```
+
+テストは合成データと一時ディレクトリを使います。検証範囲と残る確認は [Rust実装計画](docs/12_P2_IMPLEMENTATION.md) と [進捗記録](docs/06_PROGRESS_HANDOFF.md) を参照してください。
+
 ## Documentation index
 
 - [Master plan](docs/00_MASTER_PLAN.md)
