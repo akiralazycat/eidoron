@@ -1,13 +1,15 @@
 //! Local commands for one sync-folder vault.
 //!
-//! Passwords are read from a hidden prompt. `EIDORON_PASSWORD` and
-//! `EIDORON_NEW_PASSWORD` exist for tests and are not command-line arguments.
+//! A person types a password at a hidden prompt. It is never a command-line
+//! argument. `EIDORON_PASSWORD` and `EIDORON_NEW_PASSWORD` are ignored.
+//! Automation sets `EIDORON_PASSWORD_STDIN` and writes one line per prompt.
 //! The selected head is stored outside the vault folder.
 
 use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use clap::{Parser, Subcommand};
 use eidoron_vault::{Session, VaultError, VaultStatus, create_vault, open_vault};
@@ -259,12 +261,16 @@ fn get(vault: &Path, name: &str, output: Option<&Path>) -> ExitCode {
 }
 
 fn passwd(vault: &Path) -> ExitCode {
-    let Some(mut session) = open_session(vault) else {
-        return ExitCode::from(1);
-    };
     let current = match password_line("current password: ") {
         Ok(password) => password,
         Err(code) => return code,
+    };
+    let mut session = match open_vault(vault, &current) {
+        Ok(session) => session,
+        Err(error) => {
+            eprintln!("{error}");
+            return ExitCode::from(1);
+        }
     };
     let new_password = match new_password() {
         Ok(password) => password,
@@ -436,16 +442,20 @@ fn fail(error: VaultError) -> ExitCode {
 }
 
 fn password_line(prompt: &str) -> Result<String, ExitCode> {
-    if let Ok(password) = std::env::var("EIDORON_PASSWORD")
-        && !password.is_empty()
-    {
-        return Ok(password);
-    }
+    note_ignored_password_env();
     if std::env::var_os("EIDORON_PASSWORD_STDIN").is_some() {
+        eprintln!("{prompt}");
         let mut line = String::new();
-        if io::stdin().read_line(&mut line).is_err() {
-            eprintln!("could not read the password");
-            return Err(ExitCode::from(1));
+        match io::stdin().read_line(&mut line) {
+            Ok(0) => {
+                eprintln!("could not read the password");
+                return Err(ExitCode::from(1));
+            }
+            Ok(_) => {}
+            Err(_) => {
+                eprintln!("could not read the password");
+                return Err(ExitCode::from(1));
+            }
         }
         if line.ends_with('\n') {
             line.pop();
@@ -461,20 +471,22 @@ fn password_line(prompt: &str) -> Result<String, ExitCode> {
     })
 }
 
-fn new_password() -> Result<String, ExitCode> {
-    if let Ok(password) = std::env::var("EIDORON_NEW_PASSWORD")
-        && !password.is_empty()
-    {
-        return Ok(password);
+fn note_ignored_password_env() {
+    static NOTED: AtomicBool = AtomicBool::new(false);
+    if NOTED.swap(true, Ordering::Relaxed) {
+        return;
     }
-    let first = rpassword::prompt_password("new password: ").map_err(|_| {
-        eprintln!("could not read the password");
-        ExitCode::from(1)
-    })?;
-    let second = rpassword::prompt_password("repeat new password: ").map_err(|_| {
-        eprintln!("could not read the password");
-        ExitCode::from(1)
-    })?;
+    if std::env::var_os("EIDORON_PASSWORD").is_some() {
+        eprintln!("EIDORON_PASSWORD is ignored");
+    }
+    if std::env::var_os("EIDORON_NEW_PASSWORD").is_some() {
+        eprintln!("EIDORON_NEW_PASSWORD is ignored");
+    }
+}
+
+fn new_password() -> Result<String, ExitCode> {
+    let first = password_line("new password: ")?;
+    let second = password_line("repeat new password: ")?;
     if first != second {
         eprintln!("passwords do not match");
         return Err(ExitCode::from(2));

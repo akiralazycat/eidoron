@@ -1,6 +1,6 @@
 //! End-to-end commands against a temp folder.
 //!
-//! Passwords are environment variables or stdin. They are not process arguments.
+//! Passwords are stdin lines. They are not process arguments or environment values.
 
 use std::fs;
 use std::io::Write;
@@ -37,22 +37,48 @@ fn bin() -> &'static str {
     env!("CARGO_BIN_EXE_eidoron")
 }
 
-fn run(state: &Path, password: &str, args: &[&str]) -> Output {
+fn run(state: &Path, passwords: &[&str], args: &[&str]) -> Output {
     assert!(
-        args.iter()
-            .all(|arg| !arg.contains(password) && !arg.contains(NEW_PASS)),
+        args.iter().all(|arg| {
+            !arg.contains(PASS)
+                && !arg.contains(NEW_PASS)
+                && !passwords.iter().any(|pw| arg.contains(pw))
+        }),
         "password must not be an argument"
     );
-    let output = Command::new(bin())
+    let mut child = Command::new(bin())
         .args(args)
         .env("EIDORON_STATE_DIR", state)
-        .env("EIDORON_PASSWORD", password)
+        .env("EIDORON_PASSWORD_STDIN", "1")
+        .env_remove("EIDORON_PASSWORD")
         .env_remove("EIDORON_NEW_PASSWORD")
-        .env_remove("EIDORON_PASSWORD_STDIN")
-        .output()
-        .expect("run");
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn");
+    {
+        let mut stdin = child.stdin.take().expect("stdin");
+        for password in passwords {
+            writeln!(stdin, "{password}").expect("password line");
+        }
+    }
+    let output = child.wait_with_output().expect("run");
     assert_no_secret(&output);
     output
+}
+
+fn password_prompts(stderr: &str) -> Vec<&str> {
+    stderr
+        .lines()
+        .map(str::trim)
+        .filter(|line| {
+            matches!(
+                *line,
+                "password:" | "current password:" | "new password:" | "repeat new password:"
+            )
+        })
+        .collect()
 }
 
 fn text(bytes: &[u8]) -> String {
@@ -88,6 +114,7 @@ fn help_has_no_password_argument() {
         let help = text(&output.stdout);
         assert!(!help.contains("--password"), "{help}");
         assert!(!help.contains("EIDORON_PASSWORD"), "{help}");
+        assert!(!help.contains("EIDORON_NEW_PASSWORD"), "{help}");
     }
 }
 
@@ -102,33 +129,16 @@ fn create_put_get_and_passwd_roundtrip() {
     fs::write(&source, b"hello-vault").expect("source");
     fs::write(&replaced, b"replaced-bytes").expect("replaced");
 
-    let mut child = Command::new(bin())
-        .args(["create", vault.to_str().expect("utf8")])
-        .env("EIDORON_STATE_DIR", &state)
-        .env_remove("EIDORON_PASSWORD")
-        .env("EIDORON_PASSWORD_STDIN", "1")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("spawn");
-    child
-        .stdin
-        .as_mut()
-        .expect("stdin")
-        .write_all(b"synthetic-vault-pass\n")
-        .expect("write password");
-    drop(child.stdin.take());
-    let created = child.wait_with_output().expect("create");
+    let created = run(&state, &[PASS], &["create", vault.to_str().expect("utf8")]);
     assert_eq!(code(&created), 0, "{}", text(&created.stderr));
     assert!(text(&created.stderr).contains("created"));
-    assert_no_secret(&created);
+    assert_eq!(password_prompts(&text(&created.stderr)), vec!["password:"]);
 
     fs::write(vault.join("vault.header (1)"), b"numbered-copy").expect("header copy");
     fs::write(vault.join("notes (1)"), b"not-a-header").expect("notes");
     let status = run(
         &state,
-        PASS,
+        &[PASS],
         &["status", "--vault", vault.to_str().unwrap()],
     );
     assert_eq!(code(&status), 0, "{}", text(&status.stderr));
@@ -146,7 +156,7 @@ fn create_put_get_and_passwd_roundtrip() {
 
     let put = run(
         &state,
-        PASS,
+        &[PASS],
         &[
             "put",
             "--vault",
@@ -164,7 +174,7 @@ fn create_put_get_and_passwd_roundtrip() {
 
     let again = run(
         &state,
-        PASS,
+        &[PASS],
         &[
             "put",
             "--vault",
@@ -182,7 +192,7 @@ fn create_put_get_and_passwd_roundtrip() {
 
     let got = run(
         &state,
-        PASS,
+        &[PASS],
         &[
             "get",
             "--vault",
@@ -197,19 +207,19 @@ fn create_put_get_and_passwd_roundtrip() {
 
     let stdout_get = run(
         &state,
-        PASS,
+        &[PASS],
         &["get", "--vault", vault.to_str().unwrap(), "note"],
     );
     assert_eq!(code(&stdout_get), 0, "{}", text(&stdout_get.stderr));
     assert_eq!(stdout_get.stdout, b"hello-vault");
 
-    let listed = run(&state, PASS, &["ls", "--vault", vault.to_str().unwrap()]);
+    let listed = run(&state, &[PASS], &["ls", "--vault", vault.to_str().unwrap()]);
     assert_eq!(code(&listed), 0, "{}", text(&listed.stderr));
     assert_eq!(text(&listed.stdout), "note\tfile\n");
 
     let replaced_out = run(
         &state,
-        PASS,
+        &[PASS],
         &[
             "replace",
             "--vault",
@@ -221,14 +231,14 @@ fn create_put_get_and_passwd_roundtrip() {
     assert_eq!(code(&replaced_out), 0, "{}", text(&replaced_out.stderr));
     let after = run(
         &state,
-        PASS,
+        &[PASS],
         &["get", "--vault", vault.to_str().unwrap(), "note"],
     );
     assert_eq!(after.stdout, b"replaced-bytes");
 
     let removed = run(
         &state,
-        PASS,
+        &[PASS],
         &["rm", "--vault", vault.to_str().unwrap(), "note"],
     );
     assert_eq!(code(&removed), 0, "{}", text(&removed.stderr));
@@ -239,7 +249,7 @@ fn create_put_get_and_passwd_roundtrip() {
     );
     let missing = run(
         &state,
-        PASS,
+        &[PASS],
         &["get", "--vault", vault.to_str().unwrap(), "note"],
     );
     assert_eq!(code(&missing), 1);
@@ -247,7 +257,7 @@ fn create_put_get_and_passwd_roundtrip() {
 
     let put_again = run(
         &state,
-        PASS,
+        &[PASS],
         &[
             "put",
             "--vault",
@@ -258,21 +268,17 @@ fn create_put_get_and_passwd_roundtrip() {
     );
     assert_eq!(code(&put_again), 0, "{}", text(&put_again.stderr));
 
-    let changed = Command::new(bin())
-        .args(["passwd", "--vault", vault.to_str().unwrap()])
-        .env("EIDORON_STATE_DIR", &state)
-        .env("EIDORON_PASSWORD", PASS)
-        .env("EIDORON_NEW_PASSWORD", NEW_PASS)
-        .env_remove("EIDORON_PASSWORD_STDIN")
-        .output()
-        .expect("passwd");
-    assert!(
-        ["passwd", "--vault"]
-            .iter()
-            .all(|arg| !arg.contains(PASS) && !arg.contains(NEW_PASS))
+    let changed = run(
+        &state,
+        &[PASS, NEW_PASS, NEW_PASS],
+        &["passwd", "--vault", vault.to_str().unwrap()],
     );
     assert_eq!(code(&changed), 0, "{}", text(&changed.stderr));
     let changed_err = text(&changed.stderr);
+    assert_eq!(
+        password_prompts(&changed_err),
+        vec!["current password:", "new password:", "repeat new password:"]
+    );
     assert!(changed_err.contains("password changed"), "{changed_err}");
     assert!(
         changed_err.contains("a saved copy of the old header still opens with the old password"),
@@ -286,18 +292,143 @@ fn create_put_get_and_passwd_roundtrip() {
 
     let old = run(
         &state,
-        PASS,
+        &[PASS],
         &["get", "--vault", vault.to_str().unwrap(), "note"],
     );
     assert_eq!(code(&old), 1);
     assert!(text(&old.stderr).contains("unavailable"));
     let fresh = run(
         &state,
-        NEW_PASS,
+        &[NEW_PASS],
         &["get", "--vault", vault.to_str().unwrap(), "note"],
     );
     assert_eq!(code(&fresh), 0, "{}", text(&fresh.stderr));
     assert_eq!(fresh.stdout, b"hello-vault");
+}
+
+#[test]
+fn password_environment_variable_is_ignored() {
+    let scratch = Scratch::new();
+    let vault = scratch.0.join("vault");
+    let state = scratch.0.join("state");
+    let created = Command::new(bin())
+        .args(["create", vault.to_str().expect("utf8")])
+        .env("EIDORON_STATE_DIR", &state)
+        .env("EIDORON_PASSWORD", "wrong-env-secret")
+        .env("EIDORON_NEW_PASSWORD", "other-env-secret")
+        .env("EIDORON_PASSWORD_STDIN", "1")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn");
+    let mut created = created;
+    writeln!(created.stdin.as_mut().expect("stdin"), "{PASS}").expect("line");
+    drop(created.stdin.take());
+    let created = created.wait_with_output().expect("create");
+    let err = text(&created.stderr);
+    assert_eq!(code(&created), 0, "{err}");
+    assert!(err.contains("EIDORON_PASSWORD is ignored"), "{err}");
+    assert!(err.contains("EIDORON_NEW_PASSWORD is ignored"), "{err}");
+    assert!(!err.contains("wrong-env-secret"), "{err}");
+    assert!(!err.contains("other-env-secret"), "{err}");
+    assert!(!err.contains(PASS), "{err}");
+    let opened = run(
+        &state,
+        &[PASS],
+        &["status", "--vault", vault.to_str().unwrap()],
+    );
+    assert_eq!(code(&opened), 0, "{}", text(&opened.stderr));
+    let rejected = run(
+        &state,
+        &["wrong-env-secret"],
+        &["status", "--vault", vault.to_str().unwrap()],
+    );
+    assert_eq!(code(&rejected), 1);
+    assert!(text(&rejected.stderr).contains("unavailable"));
+}
+
+#[test]
+fn passwd_reads_the_current_password_once() {
+    let scratch = Scratch::new();
+    let vault = scratch.0.join("vault");
+    let state = scratch.0.join("state");
+    let source = scratch.0.join("note.txt");
+    fs::write(&source, b"kept").expect("source");
+    let created = run(&state, &[PASS], &["create", vault.to_str().unwrap()]);
+    assert_eq!(code(&created), 0, "{}", text(&created.stderr));
+    assert_eq!(password_prompts(&text(&created.stderr)), vec!["password:"]);
+    let put = run(
+        &state,
+        &[PASS],
+        &[
+            "put",
+            "--vault",
+            vault.to_str().unwrap(),
+            "note",
+            source.to_str().unwrap(),
+        ],
+    );
+    assert_eq!(code(&put), 0, "{}", text(&put.stderr));
+    let before = fs::read(vault.join("vault.header")).expect("header");
+
+    let mismatched = run(
+        &state,
+        &[PASS, "synthetic-one", "synthetic-two"],
+        &["passwd", "--vault", vault.to_str().unwrap()],
+    );
+    assert_eq!(code(&mismatched), 2, "{}", text(&mismatched.stderr));
+    let mismatched_err = text(&mismatched.stderr);
+    assert_eq!(
+        password_prompts(&mismatched_err),
+        vec!["current password:", "new password:", "repeat new password:"]
+    );
+    assert!(
+        mismatched_err.contains("passwords do not match"),
+        "{mismatched_err}"
+    );
+    assert!(
+        !mismatched_err
+            .lines()
+            .any(|line| line.trim() == "password:")
+    );
+    assert_eq!(
+        fs::read(vault.join("vault.header")).expect("unchanged"),
+        before
+    );
+    let still = run(
+        &state,
+        &[PASS],
+        &["get", "--vault", vault.to_str().unwrap(), "note"],
+    );
+    assert_eq!(still.stdout, b"kept");
+
+    let changed = run(
+        &state,
+        &[PASS, NEW_PASS, NEW_PASS],
+        &["passwd", "--vault", vault.to_str().unwrap()],
+    );
+    assert_eq!(code(&changed), 0, "{}", text(&changed.stderr));
+    assert_eq!(
+        password_prompts(&text(&changed.stderr)),
+        vec!["current password:", "new password:", "repeat new password:"]
+    );
+    assert_ne!(
+        fs::read(vault.join("vault.header")).expect("rewritten"),
+        before
+    );
+    let old = run(
+        &state,
+        &[PASS],
+        &["get", "--vault", vault.to_str().unwrap(), "note"],
+    );
+    assert_eq!(code(&old), 1);
+    let fresh = run(
+        &state,
+        &[NEW_PASS],
+        &["get", "--vault", vault.to_str().unwrap(), "note"],
+    );
+    assert_eq!(fresh.stdout, b"kept");
 }
 
 #[test]
@@ -315,13 +446,13 @@ fn conflict_requires_select_head_before_write() {
     fs::write(&beta, b"from-b").expect("beta");
     fs::write(&more, b"after-select").expect("more");
 
-    let created = run(&state_a, PASS, &["create", vault_a.to_str().unwrap()]);
+    let created = run(&state_a, &[PASS], &["create", vault_a.to_str().unwrap()]);
     assert_eq!(code(&created), 0, "{}", text(&created.stderr));
     copy_files(&vault_a, &vault_b);
 
     let wrote_a = run(
         &state_a,
-        PASS,
+        &[PASS],
         &[
             "put",
             "--vault",
@@ -334,7 +465,7 @@ fn conflict_requires_select_head_before_write() {
     let head_a = wrote_id(&text(&wrote_a.stderr));
     let wrote_b = run(
         &state_b,
-        PASS,
+        &[PASS],
         &[
             "put",
             "--vault",
@@ -349,7 +480,7 @@ fn conflict_requires_select_head_before_write() {
 
     let status = run(
         &state_fresh,
-        PASS,
+        &[PASS],
         &["status", "--vault", vault_a.to_str().unwrap()],
     );
     assert_eq!(code(&status), 0, "{}", text(&status.stderr));
@@ -360,7 +491,7 @@ fn conflict_requires_select_head_before_write() {
 
     let blocked = run(
         &state_fresh,
-        PASS,
+        &[PASS],
         &[
             "put",
             "--vault",
@@ -384,14 +515,14 @@ fn conflict_requires_select_head_before_write() {
 
     let selected = run(
         &state_fresh,
-        PASS,
+        &[PASS],
         &["select-head", "--vault", vault_a.to_str().unwrap(), &head_a],
     );
     assert_eq!(code(&selected), 0, "{}", text(&selected.stderr));
     assert!(text(&selected.stderr).contains("selected "));
     let wrote = run(
         &state_fresh,
-        PASS,
+        &[PASS],
         &[
             "put",
             "--vault",
@@ -403,27 +534,27 @@ fn conflict_requires_select_head_before_write() {
     assert_eq!(code(&wrote), 0, "{}", text(&wrote.stderr));
     let got = run(
         &state_fresh,
-        PASS,
+        &[PASS],
         &["get", "--vault", vault_a.to_str().unwrap(), "more"],
     );
     assert_eq!(got.stdout, b"after-select");
 
     let other = run(
         &state_fresh,
-        PASS,
+        &[PASS],
         &["select-head", "--vault", vault_a.to_str().unwrap(), &head_b],
     );
     assert_eq!(code(&other), 0, "{}", text(&other.stderr));
     let beta_out = run(
         &state_fresh,
-        PASS,
+        &[PASS],
         &["get", "--vault", vault_a.to_str().unwrap(), "beta"],
     );
     assert_eq!(code(&beta_out), 0, "{}", text(&beta_out.stderr));
     assert_eq!(beta_out.stdout, b"from-b");
     let absent = run(
         &state_fresh,
-        PASS,
+        &[PASS],
         &["get", "--vault", vault_a.to_str().unwrap(), "alpha"],
     );
     assert_ne!(code(&absent), 0);
