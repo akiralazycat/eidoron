@@ -13,7 +13,7 @@ path = "src/main.rs"
 [dependencies]
 eidoron-vault = { path = "../vault" }
 clap = { version = "=4.5.53", features = ["derive"] }
-rpassword = "=7.4.0"
+rpassword = "=7.5.0"
 
 [lints]
 workspace = true
